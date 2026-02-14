@@ -1,0 +1,105 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.8.2
+2 info using node@v20.20.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\25329\Desktop\nexus-flow\.npmrc
+5 silly config load:file:C:\Users\25329\.npmrc
+6 silly config load:file:C:\Users\25329\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm install
+8 verbose argv "install" "--ignore-scripts" "--cache" ".npm-cache"
+9 verbose logfile logs-max:10 dir:C:\Users\25329\Desktop\nexus-flow\.npm-cache\_logs\2026-05-26T16_47_52_944Z-
+10 verbose logfile C:\Users\25329\Desktop\nexus-flow\.npm-cache\_logs\2026-05-26T16_47_52_944Z-debug-0.log
+11 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+12 silly logfile done cleaning log files
+13 silly idealTree buildDeps
+14 silly fetch manifest @logicflow/core@1.2.27
+15 silly packumentCache full:https://registry.npmjs.org/@logicflow%2fcore cache-miss
+16 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules
+17 http fetch GET 200 https://registry.npmjs.org/@logicflow%2fcore 24ms (cache hit)
+18 silly packumentCache full:https://registry.npmjs.org/@logicflow%2fcore set size:1090121 disposed:false
+19 silly fetch manifest @logicflow/extension@1.2.27
+20 silly packumentCache full:https://registry.npmjs.org/@logicflow%2fextension cache-miss
+21 http fetch GET 200 https://registry.npmjs.org/@logicflow%2fextension 7ms (cache hit)
+22 silly packumentCache full:https://registry.npmjs.org/@logicflow%2fextension set size:1045154 disposed:false
+23 silly fetch manifest axios@1.13.2
+24 silly packumentCache full:https://registry.npmjs.org/axios cache-miss
+25 http fetch GET 200 https://registry.npmjs.org/axios 333ms (cache hit)
+26 silly packumentCache full:https://registry.npmjs.org/axios set size:820578 disposed:false
+27 silly fetch manifest core-js@3.46.0
+28 silly packumentCache full:https://registry.npmjs.org/core-js cache-miss
+29 http fetch GET 200 https://registry.npmjs.org/core-js 29ms (cache hit)
+30 silly packumentCache full:https://registry.npmjs.org/core-js set size:814557 disposed:false
+31 silly fetch manifest typescript@5.4.5
+32 silly packumentCache full:https://registry.npmjs.org/typescript cache-miss
+33 http fetch GET 200 https://registry.npmjs.org/typescript 26ms (cache hit)
+34 silly packumentCache full:https://registry.npmjs.org/typescript set size:15409943 disposed:false
+35 silly placeDep ROOT @logicflow/core@1.2.27 REPLACE for: nexus-flow@1.0.0 want: 1.2.27
+36 silly placeDep ROOT @logicflow/extension@1.2.27 REPLACE for: nexus-flow@1.0.0 want: 1.2.27
+37 silly placeDep ROOT axios@1.13.2 REPLACE for: nexus-flow@1.0.0 want: 1.13.2
+38 silly placeDep ROOT core-js@3.46.0 REPLACE for: nexus-flow@1.0.0 want: 3.46.0
+39 silly placeDep ROOT typescript@5.4.5 REPLACE for: nexus-flow@1.0.0 want: 5.4.5
+40 silly fetch manifest proxy-from-env@^1.1.0
+41 silly packumentCache full:https://registry.npmjs.org/proxy-from-env cache-miss
+42 http fetch GET 200 https://registry.npmjs.org/proxy-from-env 14ms (cache hit)
+43 silly packumentCache full:https://registry.npmjs.org/proxy-from-env set size:21422 disposed:false
+44 silly placeDep ROOT proxy-from-env@1.1.0 OK for: axios@1.13.2 want: ^1.1.0
+45 silly reify mark retired [ 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\axios' ]
+46 silly reify mark retired [ 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\core-js' ]
+47 silly reify mark retired [
+47 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\proxy-from-env'
+47 silly reify ]
+48 silly reify mark retired [
+48 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\typescript',
+48 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsc',
+48 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsc.cmd',
+48 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsc.ps1',
+48 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsserver',
+48 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsserver.cmd',
+48 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsserver.ps1'
+48 silly reify ]
+49 silly reify mark retired [
+49 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\@logicflow\\core'
+49 silly reify ]
+50 silly reify mark retired [
+50 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\@logicflow\\extension'
+50 silly reify ]
+51 silly reify moves {
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\axios': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.axios-OTvWnRqa',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\core-js': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.core-js-D3hwvMnM',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\proxy-from-env': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.proxy-from-env-wpkineVT',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\typescript': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.typescript-Xlkubs94',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsc': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\.tsc-ConSCOtB',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsc.cmd': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\.tsc.cmd-ulOf6nNq',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsc.ps1': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\.tsc.ps1-RryZQDQO',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsserver': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\.tsserver-hkYr1Thw',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsserver.cmd': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\.tsserver.cmd-RO3fckat',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\tsserver.ps1': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\.bin\\.tsserver.ps1-OZt1WFXk',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\@logicflow\\core': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\@logicflow\\.core-eqFMsWlq',
+51 silly reify   'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\@logicflow\\extension': 'C:\\Users\\25329\\Desktop\\nexus-flow\\node_modules\\@logicflow\\.extension-3HReG08Q'
+51 silly reify }
+52 verbose stack Error: EBUSY: resource busy or locked, rename 'C:\Users\25329\Desktop\nexus-flow\node_modules\core-js\stable\regexp' -> 'C:\Users\25329\Desktop\nexus-flow\node_modules\.core-js-D3hwvMnM\stable\regexp'
+52 verbose stack     at async Object.rename (node:internal/fs/promises:777:10)
+52 verbose stack     at async moveFile (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\fs\lib\move-file.js:30:5)
+52 verbose stack     at async Promise.all (index 34)
+52 verbose stack     at async moveFile (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\fs\lib\move-file.js:36:9)
+52 verbose stack     at async Promise.all (index 13)
+52 verbose stack     at async moveFile (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\fs\lib\move-file.js:36:9)
+52 verbose stack     at async Promise.allSettled (index 1)
+52 verbose stack     at async [reifyPackages] (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\reify.js:325:11)
+52 verbose stack     at async Arborist.reify (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\reify.js:142:5)
+52 verbose stack     at async Install.exec (C:\Program Files\nodejs\node_modules\npm\lib\commands\install.js:150:5)
+53 error code EBUSY
+54 error syscall rename
+55 error path C:\Users\25329\Desktop\nexus-flow\node_modules\core-js\stable\regexp
+56 error dest C:\Users\25329\Desktop\nexus-flow\node_modules\.core-js-D3hwvMnM\stable\regexp
+57 error errno -4082
+58 error EBUSY: resource busy or locked, rename 'C:\Users\25329\Desktop\nexus-flow\node_modules\core-js\stable\regexp' -> 'C:\Users\25329\Desktop\nexus-flow\node_modules\.core-js-D3hwvMnM\stable\regexp'
+59 silly unfinished npm timer reify 1779814073760
+60 silly unfinished npm timer reify:retireShallow 1779814074794
+61 verbose cwd C:\Users\25329\Desktop\nexus-flow
+62 verbose os Windows_NT 10.0.22631
+63 verbose node v20.20.0
+64 verbose npm  v10.8.2
+65 verbose exit -4082
+66 verbose code -4082
+67 error A complete log of this run can be found in: C:\Users\25329\Desktop\nexus-flow\.npm-cache\_logs\2026-05-26T16_47_52_944Z-debug-0.log
