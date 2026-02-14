@@ -51,23 +51,25 @@ const emit = defineEmits<{
   (e: 'history-change', canUndo: boolean, canRedo: boolean): void;
 }>();
 
+// 画布容器 DOM，LogicFlow 实例会挂载到这里
 const container = ref<HTMLElement | null>(null);
+
 let lf: LogicFlow | null = null;
 let nodeSequence = 4;
 let removeKeyboardFocusListener: (() => void) | null = null;
 
-// 启用框选插件：支持鼠标拖拽框选多个节点或边
+// 启用框选插件，支持拖拽框选多个节点或连线
 LogicFlow.use(SelectionSelect);
 
-// 连线约束：禁止节点连接到自己，避免自环
+// 连线约束：禁止节点连接到自己，避免出现自环
 const customConnectRule = (source: any, target: any) => source.id !== target.id;
 
-// 默认示例图：父组件未传入数据时先渲染这一份
+// 父组件还没传真实数据时，先渲染一份默认示例图
 const defaultGraphData: GraphData = {
   nodes: [
-    { id: '1', type: 'rect', x: 100, y: 100, text: '\u5f00\u59cb' },
-    { id: '2', type: 'rect', x: 300, y: 200, text: '\u5ba1\u6279' },
-    { id: '3', type: 'rect', x: 500, y: 100, text: '\u7ed3\u675f' },
+    { id: '1', type: 'rect', x: 100, y: 100, text: '开始' },
+    { id: '2', type: 'rect', x: 300, y: 200, text: '审批' },
+    { id: '3', type: 'rect', x: 500, y: 100, text: '结束' },
   ],
   edges: [
     { id: 'edge1', sourceNodeId: '1', targetNodeId: '2', type: 'polyline' },
@@ -75,27 +77,28 @@ const defaultGraphData: GraphData = {
   ],
 };
 
-// 把当前画布数据同步给父组件的 v-model
+// 把当前画布里的整张图同步给父组件的 v-model
 const emitGraphData = () => {
   if (!lf) return;
   emit('update:modelValue', lf.getGraphData() as GraphData);
 };
 
-// 同步撤销/重做状态，供父组件控制按钮可用性
+// 把撤销/重做是否可用同步给父组件，控制工具栏按钮状态
 const emitHistoryState = () => {
   if (!lf) return;
   emit('history-change', lf.history.undoAble(), lf.history.redoAble());
 };
 
-// 图数据或历史状态变化时，统一刷新给父组件
+// 统一刷新入口：只要图或历史状态发生变化，就重新同步给父组件
 const refreshState = () => {
   emitGraphData();
   emitHistoryState();
 };
 
-// 根据当前节点数量，计算新增节点的默认摆放位置
+// 根据当前节点数量，为新节点计算一个默认落点，避免刚新增时完全重叠
 const getNextNodePosition = () => {
-  const graphData = (lf?.getGraphData() as GraphData | undefined) || { nodes: [] as any[], edges: [] as any[] };
+  const graphData =
+    (lf?.getGraphData() as GraphData | undefined) || { nodes: [] as any[], edges: [] as any[] };
   const nodeCount = graphData.nodes.length;
   const width = container.value?.clientWidth || 1200;
   const height = container.value?.clientHeight || 800;
@@ -108,7 +111,7 @@ const getNextNodePosition = () => {
   };
 };
 
-// 限制节点坐标不要跑出画布边界
+// 把新节点坐标限制在画布范围内，避免刚创建就超出可视区域
 const clampNodePosition = (x: number, y: number) => {
   const { maxX, maxY } = getNextNodePosition();
   return {
@@ -117,7 +120,7 @@ const clampNodePosition = (x: number, y: number) => {
   };
 };
 
-// 新增节点通用流程：算位置 -> 创建节点 -> 选中节点 -> 同步状态
+// 新增节点的通用流程：算默认位置 -> 创建节点 -> 自动选中 -> 同步状态
 const addNode = (type: AddNodeType, text: string) => {
   if (!lf) return null;
 
@@ -136,10 +139,10 @@ const addNode = (type: AddNodeType, text: string) => {
   return model;
 };
 
-const addRectNode = () => addNode('rect', '\u65b0\u8282\u70b9');
-const addDiamondNode = () => addNode('diamond', '\u6761\u4ef6');
+const addRectNode = () => addNode('rect', '新节点');
+const addDiamondNode = () => addNode('diamond', '条件');
 
-// 删除当前选中的节点和边，并返回删除数量
+// 删除当前选中的节点和边，返回删除数量给父组件做提示
 const deleteSelectedElements = () => {
   if (!lf) return 0;
 
@@ -150,7 +153,6 @@ const deleteSelectedElements = () => {
 
   if (total === 0) return 0;
 
-  // 先删边，再删节点，避免关联关系出问题
   edgeIds.forEach((id) => lf?.deleteEdge(id));
   nodeIds.forEach((id) => lf?.deleteNode(id));
   lf.clearSelectElements();
@@ -158,96 +160,21 @@ const deleteSelectedElements = () => {
   return total;
 };
 
-onMounted(() => {
-  if (!container.value) return;
-
-  // 初始化 LogicFlow 实例：这一步会真正创建画布
-  lf = new LogicFlow({
-    container: container.value,
-    grid: true,
-    width: container.value.clientWidth,
-    height: container.value.clientHeight,
-    edgeType: 'polyline',
-    keyboard: {
-      enabled: true,
-      shortcuts: [
-        {
-          keys: 'delete',
-          callback: (event: KeyboardEvent) => {
-            if (!lf || lf.graphModel.textEditElement) return;
-            event.preventDefault();
-            deleteSelectedElements();
-          },
-          action: 'keydown',
-        },
-        {
-          keys: ['ctrl + shift + z', 'cmd + shift + z'],
-          callback: (event: KeyboardEvent) => {
-            if (!lf || lf.graphModel.textEditElement) return;
-            event.preventDefault();
-            redo();
-          },
-          action: 'keydown',
-        },
-      ],
-    },
-    plugins: [SelectionSelect],
-    edgeGenerator: (sourceNode, targetNode) => {
-      // 先校验连线规则，不允许自连接
-      if (!customConnectRule(sourceNode, targetNode)) return false;
-      // 默认生成折线
-      return 'polyline';
-    },
-  });
-
-  // 监听画布内部变化，把状态同步回 Vue
-  lf.on('history:change', emitHistoryState);
-  lf.on('node:add', refreshState);
-  lf.on('node:delete', refreshState);
-  lf.on('edge:add', refreshState);
-  lf.on('edge:delete', refreshState);
-  lf.on('graph:transform', emitGraphData);
-  lf.on('text:update', refreshState);
-
-  // 父组件有数据就渲染父组件的数据，没有就渲染默认图
-  lf.openSelectionSelect?.();
-
-
-  const graphContainer = lf.container;
-  const focusGraphContainer = () => graphContainer.focus();
-  graphContainer.addEventListener('pointerdown', focusGraphContainer);
-  removeKeyboardFocusListener = () => {
-    graphContainer.removeEventListener('pointerdown', focusGraphContainer);
-  };
-  focusGraphContainer();
-
-  lf.render(props.modelValue || defaultGraphData);
-  emitHistoryState();
-  emitGraphData();
-});
-
-onBeforeUnmount(() => {
-  removeKeyboardFocusListener?.();
-  removeKeyboardFocusListener = null;
-  lf?.destroy();
-});
-
-// 撤销后要刷新状态，确保父组件按钮状态同步
+// 撤销/重做后主动刷新一次父组件状态，确保按钮和图数据同步
 const undo = () => {
   lf?.undo();
   refreshState();
 };
 
-// 重做后要刷新状态，确保父组件按钮状态同步
 const redo = () => {
   lf?.redo();
   refreshState();
 };
 
-// 直接返回当前画布的原始图数据
+// 直接返回当前画布里的原始图数据
 const getGraphData = () => lf?.getGraphData();
 
-// 提供给布局算法使用：在普通图数据基础上补上节点宽高
+// 给智能布局准备数据：在普通图数据基础上补上节点宽高
 const getLayoutGraphData = () => {
   if (!lf) return null;
 
@@ -267,12 +194,12 @@ const getLayoutGraphData = () => {
   } as LayoutGraphData;
 };
 
-// 让画布自动缩放，尽量把整张图显示完整
+// 自动缩放视图，让整张图尽量完整出现在可视区域中
 const fitView = () => {
   lf?.fitView(40, 40);
 };
 
-// 把布局算法算出的新坐标真正落到节点上
+// 把布局算法算出的新坐标真正应用到 LogicFlow 节点模型上
 const applyNodePositions = (positions: NodePosition[]) => {
   if (!lf) return null;
 
@@ -288,7 +215,8 @@ const applyNodePositions = (positions: NodePosition[]) => {
   return lf.getGraphData() as GraphData;
 };
 
-// 对边线进行二次优化，减少长横线和重叠拐点
+// 二次优化折线走向：
+// 先按节点位置重新分配每条边的“分流/汇流通道”，再去掉重复折点
 const optimizeEdgeRoutes = () => {
   if (!lf) return null;
 
@@ -306,11 +234,11 @@ const optimizeEdgeRoutes = () => {
           height: model?.height ?? 80,
         },
       ];
-    })
+    }),
   );
 
-  // outgoingMap：每个节点的出边分组
-  // incomingMap：每个节点的入边分组
+  // outgoingMap：某个节点发出的所有边
+  // incomingMap：某个节点流入的所有边
   const outgoingMap = new Map<string, any[]>();
   const incomingMap = new Map<string, any[]>();
 
@@ -325,19 +253,18 @@ const optimizeEdgeRoutes = () => {
     incomingMap.get(edge.targetNodeId)?.push(edge);
   });
 
-  // 统一把坐标处理成整数
+  // 统一把坐标处理成整数，避免折点出现很多小数
   const round = (value: number) => Math.round(value);
   const toPoint = (x: number, y: number): Point => ({ x: round(x), y: round(y) });
 
-  // 去掉重复点和位于同一直线上的无意义中间点
+  // 去掉重复点和落在同一直线上的无效中间点，让 pointsList 更干净
   const dedupePoints = (points: Point[]) => {
-    // 筛选掉重复的点
     const compact = points.filter((point, index) => {
       if (index === 0) return true;
       const prev = points[index - 1];
       return prev.x !== point.x || prev.y !== point.y;
     });
-    // 筛选掉在同一直线上的点
+
     return compact.filter((point, index) => {
       if (index === 0 || index === compact.length - 1) return true;
       const prev = compact[index - 1];
@@ -355,7 +282,7 @@ const optimizeEdgeRoutes = () => {
 
     if (!source || !target || !edgeModel) return;
 
-    // 同一起点的出边：按目标节点位置排序，决定谁先分流
+    // 同一起点的出边先按目标节点位置排序，决定谁走上面的通道、谁走下面的通道
     const sourceOutgoing = (outgoingMap.get(edge.sourceNodeId) || []).slice().sort((a, b) => {
       const targetA = nodeMap.get(a.targetNodeId);
       const targetB = nodeMap.get(b.targetNodeId);
@@ -364,7 +291,7 @@ const optimizeEdgeRoutes = () => {
       return targetA.x - targetB.x;
     });
 
-    // 同一终点的入边：按起始节点位置排序，决定谁先汇入
+    // 同一终点的入边先按来源节点位置排序，决定汇入终点时的错位顺序
     const targetIncoming = (incomingMap.get(edge.targetNodeId) || []).slice().sort((a, b) => {
       const sourceA = nodeMap.get(a.sourceNodeId);
       const sourceB = nodeMap.get(b.sourceNodeId);
@@ -376,15 +303,15 @@ const optimizeEdgeRoutes = () => {
     const outgoingIndex = Math.max(0, sourceOutgoing.findIndex((item) => item.id === edge.id));
     const incomingIndex = Math.max(0, targetIncoming.findIndex((item) => item.id === edge.id));
 
-    // 先判断这条边更适合横向走线还是纵向走线
     const horizontalDistance = Math.abs(target.x - source.x);
     const verticalDistance = Math.abs(target.y - source.y);
+    // 更接近上下方向时，优先走纵向折线；否则走横向主通道
     const isVerticalRoute =
       horizontalDistance < Math.max(source.width, target.width) * 0.9 &&
       verticalDistance > Math.max(source.height, target.height) * 0.6;
 
     if (isVerticalRoute) {
-      // 纵向路线：从上/下边缘进出，中间走一段横线
+      // 纵向走线：从上下边缘进出，中间只保留一段横向折线
       const direction = target.y >= source.y ? 1 : -1;
       const startPoint = toPoint(source.x, source.y + (direction * source.height) / 2);
       const endPoint = toPoint(target.x, target.y - (direction * target.height) / 2);
@@ -404,23 +331,18 @@ const optimizeEdgeRoutes = () => {
       return;
     }
 
-    // 横向路线：从左右边缘进出，中间分车道
+    // 横向走线：先从起点分流，再走中间 lane，最后在终点附近汇入
     const direction = target.x >= source.x ? 1 : -1;
     const startPoint = toPoint(source.x + (direction * source.width) / 2, source.y);
     const endPoint = toPoint(target.x - (direction * target.width) / 2, target.y);
-    // 起始节点的出边数量
     const branchCount = sourceOutgoing.length;
-    // 终止节点的入边数量
     const mergeCount = targetIncoming.length;
-    // 中间车道边的上下偏移量，保证多条边不重叠
     const laneGap = 42;
-    const branchOffset = branchCount > 1
-      ? (outgoingIndex - (branchCount - 1) / 2) * laneGap  //距离中间车道的竖直偏移量
-      : 0;
-    const mergeOffset = mergeCount > 1
-      ? (incomingIndex - (mergeCount - 1) / 2) * 18       //距离终点竖轴的竖直偏移量
-      : 0;
-    // laneY：这条边中间横向通道所在的高度
+    const branchOffset =
+      branchCount > 1 ? (outgoingIndex - (branchCount - 1) / 2) * laneGap : 0;
+    const mergeOffset =
+      mergeCount > 1 ? (incomingIndex - (mergeCount - 1) / 2) * 18 : 0;
+    // laneY 表示这条边在中间横向主通道上走的那条“高度层”
     const laneY = round(source.y + branchOffset);
     const distance = Math.max(horizontalDistance, 80);
     const sourceGap = Math.min(104, Math.max(42, distance * 0.22));
@@ -429,7 +351,11 @@ const optimizeEdgeRoutes = () => {
     let mergeX = round(endPoint.x - direction * targetGap);
     const minimumChannel = 36;
 
-    if ((direction > 0 && splitX > mergeX - minimumChannel) || (direction < 0 && splitX < mergeX + minimumChannel)) {
+    // splitX 和 mergeX 过近时，强行拉开一段最小通道，避免折线挤成一团
+    if (
+      (direction > 0 && splitX > mergeX - minimumChannel) ||
+      (direction < 0 && splitX < mergeX + minimumChannel)
+    ) {
       const centerX = round((startPoint.x + endPoint.x) / 2);
       splitX = centerX - direction * Math.ceil(minimumChannel / 2);
       mergeX = centerX + direction * Math.ceil(minimumChannel / 2);
@@ -457,13 +383,13 @@ const optimizeEdgeRoutes = () => {
   return lf.getGraphData() as GraphData;
 };
 
-// 用一份完整流程图数据重绘画布
+// 用一整份图数据重绘画布，同时把最新状态再同步回父组件
 const setGraphData = (data: GraphData) => {
   lf?.render(data);
   refreshState();
 };
 
-// 导出当前流程图为格式化后的 JSON 字符串
+// 导出为格式化后的 JSON 字符串，便于查看和持久化
 const exportData = () => (lf ? JSON.stringify(lf.getGraphData(), null, 2) : '');
 
 // 从 JSON 字符串恢复流程图
@@ -473,12 +399,188 @@ const importData = (json: string) => {
     lf?.render(data);
     refreshState();
   } catch (error) {
-    console.error('瀵煎叆娴佺▼鏁版嵁澶辫触', error);
+    console.error('Failed to import flow JSON', error);
     throw error;
   }
 };
 
-// 把这些方法暴露给父组件，父组件可以通过 ref 直接调用
+// 递归把 SVG 上每个元素的计算后样式写回内联 style
+// 这样导出时即使脱离当前页面 CSS，图片样式也尽量保持不变
+const inlineSvgStyles = (sourceEl: Element, targetEl: Element) => {
+  // 获取浏览器最终算出来的样式
+  // 当前元素的样式对象
+  const computedStyle = window.getComputedStyle(sourceEl);
+  // 把所有样式拼成一整条 CSS 字符串
+  const styleText = Array.from(computedStyle)
+    .map((styleName) => `${styleName}:${computedStyle.getPropertyValue(styleName)};`)
+    .join('');
+
+  targetEl.setAttribute('style', styleText);
+
+  // 克隆节点对应位置的子元素
+  Array.from(sourceEl.children).forEach((child, index) => {
+    const clonedChild = targetEl.children[index];
+    if (clonedChild) {
+      inlineSvgStyles(child, clonedChild);
+    }
+  });
+};
+
+// 拿到 SVG -> 克隆并内联样式 -> 画到 canvas -> 导出 PNG
+const exportPngDataUrl = async () => {
+  if (!container.value) return null;
+
+  const svg = container.value.querySelector('svg');
+  if (!svg) return null;
+
+  const rect = container.value.getBoundingClientRect();
+  const width = Math.max(Math.round(rect.width || svg.clientWidth || 1), 1);
+  const height = Math.max(Math.round(rect.height || svg.clientHeight || 1), 1);
+  const clonedSvg = svg.cloneNode(true) as SVGSVGElement;
+
+  // 先把 SVG 变成一份“自带样式”的独立资源，再转图片
+  inlineSvgStyles(svg, clonedSvg);
+  clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  clonedSvg.setAttribute('width', `${width}`);
+  clonedSvg.setAttribute('height', `${height}`);
+
+  if (!clonedSvg.getAttribute('viewBox')) {
+    clonedSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  }
+
+  // 把 svg 转成字符串和临时地址，再加载到 Image 里画到 canvas 上，最后导出 PNG 数据 URL
+  // 序列化后的 SVG 字符串
+  const svgText = new XMLSerializer().serializeToString(clonedSvg);
+  // 把字符串包装成一个 SVG 文件对象，生成一个临时 URL 地址
+  const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+  // 浏览器创建的临时资源地址，指向上面那个 SVG 文件对象
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    // 等图片异步加载成功后再绘制到 canvas，所以这里包了一层 Promise
+    // SVG加载成功后画到canvas上，最后再从canvas上导出pngDataUrl，这个 URL 就是最终导出的 PNG 图片数据了
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        // 高清屏下按 devicePixelRatio 放大画布，导出的图片会更清晰
+        const ratio = window.devicePixelRatio || 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(Math.round(width * ratio), 1);
+        canvas.height = Math.max(Math.round(height * ratio), 1);
+        // // 2D 绘图上下文
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context is not available'));
+          return;
+        }
+
+        ctx.scale(ratio, ratio);
+        // 先铺白底，避免导出的 PNG 背景透明
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        // 把加载好的 SVG 图片画到 canvas 上
+        ctx.drawImage(image, 0, 0, width, height);
+        // 把 canvas 转成pngDataUrl，这个 URL 就是最终导出的 PNG 图片数据了
+        resolve(canvas.toDataURL('image/png'));
+      };
+
+      image.onerror = () => {
+        reject(new Error('Failed to load SVG for export'));
+      };
+
+      image.src = svgUrl;
+    });
+
+    // 传给父组件触发下载
+    return dataUrl;
+  } catch (error) {
+    console.error('Failed to export PNG', error);
+    return null;
+  } finally {
+    // 释放前面创建的临时 URL，避免内存泄漏
+    URL.revokeObjectURL(svgUrl);
+  }
+};
+
+onMounted(() => {
+  if (!container.value) return;
+
+  // 初始化 LogicFlow 实例：真正的画布就是在这里创建出来的
+  lf = new LogicFlow({
+    container: container.value,
+    grid: true,
+    width: container.value.clientWidth,
+    height: container.value.clientHeight,
+    edgeType: 'polyline',
+    keyboard: {
+      enabled: true,
+      shortcuts: [
+        {
+          // Delete / Backspace 删除当前选中元素
+          keys: 'delete',
+          callback: (event: KeyboardEvent) => {
+            if (!lf || lf.graphModel.textEditElement) return;
+            event.preventDefault();
+            deleteSelectedElements();
+          },
+          action: 'keydown',
+        },
+        {
+          // 额外补上 Ctrl/Cmd + Shift + Z 作为 redo 快捷键
+          keys: ['ctrl + shift + z', 'cmd + shift + z'],
+          callback: (event: KeyboardEvent) => {
+            if (!lf || lf.graphModel.textEditElement) return;
+            event.preventDefault();
+            redo();
+          },
+          action: 'keydown',
+        },
+      ],
+    },
+    plugins: [SelectionSelect],
+    edgeGenerator: (sourceNode, targetNode) => {
+      if (!customConnectRule(sourceNode, targetNode)) return false;
+      // 当前项目统一使用折线，便于后面做路由优化
+      return 'polyline';
+    },
+  });
+
+  // 监听 LogicFlow 内部变化，再同步回 Vue 的状态系统
+  lf.on('history:change', emitHistoryState);
+  lf.on('node:add', refreshState);
+  lf.on('node:delete', refreshState);
+  lf.on('edge:add', refreshState);
+  lf.on('edge:delete', refreshState);
+  lf.on('graph:transform', emitGraphData);
+  lf.on('text:update', refreshState);
+
+  lf.openSelectionSelect?.();
+
+  // 让画布在点击后拿到焦点，这样键盘快捷键才能稳定生效
+  const graphContainer = lf.container;
+  const focusGraphContainer = () => graphContainer.focus();
+  graphContainer.addEventListener('pointerdown', focusGraphContainer);
+  removeKeyboardFocusListener = () => {
+    graphContainer.removeEventListener('pointerdown', focusGraphContainer);
+  };
+  focusGraphContainer();
+
+  // 父组件有数据就渲染父组件的数据，没有就先用默认示例图
+  lf.render(props.modelValue || defaultGraphData);
+  emitHistoryState();
+  emitGraphData();
+});
+
+onBeforeUnmount(() => {
+  // 组件销毁时移除事件并销毁 LogicFlow 实例，避免泄漏
+  removeKeyboardFocusListener?.();
+  removeKeyboardFocusListener = null;
+  lf?.destroy();
+});
+
+// 暴露给父组件的方法：
+// 父组件通过 designerRef 调用这些方法，控制画布、导出数据、触发布局等
 defineExpose({
   undo,
   redo,
@@ -490,6 +592,7 @@ defineExpose({
   setGraphData,
   exportData,
   importData,
+  exportPngDataUrl,
   addRectNode,
   addDiamondNode,
   deleteSelectedElements,
