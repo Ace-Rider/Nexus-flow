@@ -7,7 +7,7 @@ type RetryableRequestConfig = InternalAxiosRequestConfig & {
 };
 
 const request: AxiosInstance = axios.create({
-  baseURL: process.env.VUE_APP_API_BASE || '/api',
+  baseURL: import.meta.env.VITE_API_BASE || '/api',
   timeout: 15000,
 });
 
