@@ -1,29 +1,79 @@
-/* src/assets/main.css */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+:root {
+  color-scheme: light;
+  --app-bg: #f4f7fb;
+  --app-bg-2: #eef3f8;
+  --app-surface: rgba(255, 255, 255, 0.88);
+  --app-surface-strong: rgba(255, 255, 255, 0.96);
+  --app-border: rgba(15, 23, 42, 0.08);
+  --app-border-strong: rgba(15, 23, 42, 0.14);
+  --app-text: #102033;
+  --app-text-soft: #5f6c82;
+  --app-accent: #2563eb;
+  --app-accent-2: #0f766e;
+  --app-accent-3: #7c3aed;
+  --app-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+  --app-radius-lg: 22px;
+  --app-radius-md: 16px;
+  --app-radius-sm: 12px;
+  --app-font:
+    "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
+    "Microsoft YaHei", sans-serif;
 }
 
-html, body, #app {
-    height: 100%;
-    width: 100%;
-    overflow: hidden;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--app-font);
+  color: var(--app-text);
+  background:
+    linear-gradient(rgba(16, 32, 51, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 32, 51, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 30%),
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.08), transparent 26%),
+    linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-2) 100%);
+  background-size: 32px 32px, 32px 32px, auto, auto, auto;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.16);
+  color: var(--app-text);
 }
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  width: 8px;
+  height: 8px;
 }
+
 ::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 999px;
 }
+
 ::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 3px;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.48), rgba(15, 118, 110, 0.42));
+  border-radius: 999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.7), rgba(15, 118, 110, 0.64));
 }

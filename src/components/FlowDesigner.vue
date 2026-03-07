@@ -6,15 +6,17 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import LogicFlow from '@logicflow/core';
 import '@logicflow/core/dist/style/index.css';
-import { SelectionSelect } from '@logicflow/extension';
+import { MiniMap, SelectionSelect } from '@logicflow/extension';
 import '@logicflow/extension/lib/style/index.css';
-
-type GraphData = {
-  nodes: any[];
-  edges: any[];
-};
+import type { FlowClipboardData, GraphData, SelectedElement } from '@/types/flow';
 
 type AddNodeType = 'rect' | 'diamond';
+
+export type NodeTemplate = {
+  type: AddNodeType;
+  text: string;
+  properties?: Record<string, any>;
+};
 
 type LayoutNode = {
   id: string;
@@ -49,6 +51,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: GraphData): void;
   (e: 'history-change', canUndo: boolean, canRedo: boolean): void;
+  (e: 'selection-change', value: SelectedElement): void;
 }>();
 
 // 画布容器 DOM，LogicFlow 实例会挂载到这里
@@ -57,6 +60,11 @@ const container = ref<HTMLElement | null>(null);
 let lf: LogicFlow | null = null;
 let nodeSequence = 4;
 let removeKeyboardFocusListener: (() => void) | null = null;
+let clipboard: FlowClipboardData | null = null;
+let pasteSequence = 1;
+// 平移/缩放只改变视口，不改变图内容；
+// graph:transform 会连续触发，这里用防抖避免拖动画布时每帧全量克隆图数据。
+let transformSyncTimer: number | null = null;
 
 // 启用框选插件，支持拖拽框选多个节点或连线
 LogicFlow.use(SelectionSelect);
@@ -83,6 +91,17 @@ const emitGraphData = () => {
   emit('update:modelValue', lf.getGraphData() as GraphData);
 };
 
+// 防抖版 emitGraphData：仅在平移/缩放停止一小段时间后同步一次
+const scheduleTransformSync = () => {
+  if (transformSyncTimer !== null) {
+    window.clearTimeout(transformSyncTimer);
+  }
+  transformSyncTimer = window.setTimeout(() => {
+    transformSyncTimer = null;
+    emitGraphData();
+  }, 300);
+};
+
 // 把撤销/重做是否可用同步给父组件，控制工具栏按钮状态
 const emitHistoryState = () => {
   if (!lf) return;
@@ -93,6 +112,48 @@ const emitHistoryState = () => {
 const refreshState = () => {
   emitGraphData();
   emitHistoryState();
+};
+
+// 把当前选中的元素同步给父组件，右侧属性面板会根据这个结果切换表单内容。
+const emitSelectionChange = (value?: SelectedElement) => {
+  if (value !== undefined) {
+    emit('selection-change', value);
+    return;
+  }
+
+  if (!lf) {
+    emit('selection-change', null);
+    return;
+  }
+
+  const selected = lf.getSelectElements(true) as GraphData;
+  const total = selected.nodes.length + selected.edges.length;
+
+  if (total === 0) {
+    emit('selection-change', null);
+    return;
+  }
+
+  if (total > 1) {
+    emit('selection-change', {
+      kind: 'multiple',
+      data: selected,
+    });
+    return;
+  }
+
+  if (selected.nodes.length === 1) {
+    emit('selection-change', {
+      kind: 'node',
+      data: selected.nodes[0],
+    });
+    return;
+  }
+
+  emit('selection-change', {
+    kind: 'edge',
+    data: selected.edges[0],
+  });
 };
 
 // 根据当前节点数量，为新节点计算一个默认落点，避免刚新增时完全重叠
@@ -136,11 +197,167 @@ const addNode = (type: AddNodeType, text: string) => {
 
   lf.selectElementById(model.id);
   refreshState();
+  emitSelectionChange({
+    kind: 'node',
+    data: model.getData(),
+  });
+  return model;
+};
+
+// 支持从模板批量创建节点，便于左侧节点库直接投放常用流程节点
+const addNodeFromTemplate = (template: NodeTemplate) => {
+  if (!lf) return null;
+
+  const model = addNode(template.type, template.text);
+  if (!model) return null;
+
+  if (template.properties) {
+    lf.setProperties(model.id, template.properties);
+    refreshState();
+  }
+
+  const element = lf.getDataById(model.id);
+  if (element) {
+    emitSelectionChange({
+      kind: 'node',
+      data: element as any,
+    });
+  }
+
   return model;
 };
 
 const addRectNode = () => addNode('rect', '新节点');
 const addDiamondNode = () => addNode('diamond', '条件');
+
+// 复制前先把选中的节点、边整理成一份剪贴板快照：
+// 只复制“选中节点之间互相连接的边”，避免粘贴出残缺连线。
+const copySelectedElements = () => {
+  if (!lf) return null;
+
+  const selected = lf.getSelectElements(true) as GraphData;
+  if (selected.nodes.length === 0 && selected.edges.length === 0) {
+    clipboard = null;
+    return null;
+  }
+
+  const selectedNodeIds = new Set(selected.nodes.map((node) => node.id));
+  const copiedEdges = selected.edges.filter(
+    (edge) =>
+      selectedNodeIds.has(edge.sourceNodeId) && selectedNodeIds.has(edge.targetNodeId),
+  );
+
+  const minX = selected.nodes.length > 0 ? Math.min(...selected.nodes.map((node) => node.x)) : 0;
+  const minY = selected.nodes.length > 0 ? Math.min(...selected.nodes.map((node) => node.y)) : 0;
+
+  clipboard = {
+    nodes: selected.nodes.map((node) => ({
+      ...node,
+      properties: node.properties ? { ...node.properties } : undefined,
+      text:
+        typeof node.text === 'object' && node.text
+          ? { ...node.text }
+          : node.text,
+    })),
+    edges: copiedEdges.map((edge) => ({
+      ...edge,
+      properties: edge.properties ? { ...edge.properties } : undefined,
+      text:
+        typeof edge.text === 'object' && edge.text
+          ? { ...edge.text }
+          : edge.text,
+    })),
+    anchor: {
+      x: minX,
+      y: minY,
+    },
+  };
+
+  return clipboard;
+};
+
+// 基于已有节点 id 生成新 id，避免复制粘贴后和原图冲突
+const createPastedId = (prefix: string) => `${prefix}_${Date.now()}_${pasteSequence++}`;
+
+// 粘贴时整体向右下偏移一点，让用户能直观看到“新复制出来的一份”
+const pasteClipboardElements = () => {
+  if (!lf || !clipboard || clipboard.nodes.length === 0) return 0;
+
+  const graphData = lf.getGraphData() as GraphData;
+  const existingNodeIds = new Set(graphData.nodes.map((node) => node.id));
+  const existingEdgeIds = new Set(graphData.edges.map((edge) => edge.id));
+  const idMap = new Map<string, string>();
+  const offsetX = 48;
+  const offsetY = 36;
+  const pastedNodeIds: string[] = [];
+  const pastedEdgeIds: string[] = [];
+
+  clipboard.nodes.forEach((node) => {
+    let nextId = createPastedId('node');
+    while (existingNodeIds.has(nextId)) {
+      nextId = createPastedId('node');
+    }
+    existingNodeIds.add(nextId);
+    idMap.set(node.id, nextId);
+
+    lf?.addNode({
+      ...node,
+      id: nextId,
+      // 画布数据的节点一定有 type；这里兜底 rect 以满足 NodeConfig 类型要求
+      type: node.type ?? 'rect',
+      x: node.x + offsetX,
+      y: node.y + offsetY,
+      properties: node.properties ? { ...node.properties } : undefined,
+      text:
+        typeof node.text === 'object' && node.text
+          // LogicFlow 的 TextConfig 要求对象带 x/y；画布数据的 text 对象均由 LogicFlow 生成，运行时必然携带
+          ? ({ ...node.text, value: node.text.value ?? '' } as { x: number; y: number; value: string })
+          : node.text,
+    });
+    pastedNodeIds.push(nextId);
+  });
+
+  clipboard.edges.forEach((edge) => {
+    const sourceNodeId = idMap.get(edge.sourceNodeId);
+    const targetNodeId = idMap.get(edge.targetNodeId);
+    if (!sourceNodeId || !targetNodeId) return;
+
+    let nextId = createPastedId('edge');
+    while (existingEdgeIds.has(nextId)) {
+      nextId = createPastedId('edge');
+    }
+    existingEdgeIds.add(nextId);
+
+    lf?.addEdge({
+      ...edge,
+      id: nextId,
+      sourceNodeId,
+      targetNodeId,
+      properties: edge.properties ? { ...edge.properties } : undefined,
+      text:
+        typeof edge.text === 'object' && edge.text
+          // LogicFlow 的边文本配置要求对象带 x/y；画布数据的 text 对象均由 LogicFlow 生成，运行时必然携带
+          ? ({ ...edge.text, value: edge.text.value ?? '' } as { x: number; y: number; value: string })
+          : edge.text,
+    });
+    pastedEdgeIds.push(nextId);
+  });
+
+  lf.clearSelectElements();
+  pastedNodeIds.forEach((id) => lf?.selectElementById(id, true));
+  pastedEdgeIds.forEach((id) => lf?.selectElementById(id, true));
+  refreshState();
+  emitSelectionChange();
+
+  return pastedNodeIds.length + pastedEdgeIds.length;
+};
+
+// “重复创建”本质上是复制后立即粘贴，保留一份连续搭图的高效操作
+const duplicateSelectedElements = () => {
+  const copied = copySelectedElements();
+  if (!copied) return 0;
+  return pasteClipboardElements();
+};
 
 // 删除当前选中的节点和边，返回删除数量给父组件做提示
 const deleteSelectedElements = () => {
@@ -157,7 +374,43 @@ const deleteSelectedElements = () => {
   nodeIds.forEach((id) => lf?.deleteNode(id));
   lf.clearSelectElements();
   refreshState();
+  emitSelectionChange(null);
   return total;
+};
+
+// 全选当前画布里的所有节点和连线，方便批量处理
+const selectAllElements = () => {
+  if (!lf) return 0;
+
+  const graphData = lf.getGraphData() as GraphData;
+  if (graphData.nodes.length === 0 && graphData.edges.length === 0) {
+    return 0;
+  }
+
+  lf.clearSelectElements();
+  graphData.nodes.forEach((node) => {
+    lf?.selectElementById(node.id, true);
+  });
+  graphData.edges.forEach((edge) => {
+    lf?.selectElementById(edge.id, true);
+  });
+
+  emitSelectionChange();
+  return graphData.nodes.length + graphData.edges.length;
+};
+
+// 取消当前选中状态，快捷键或页面按钮都可以调用
+const clearSelection = () => {
+  if (!lf) return;
+  lf.clearSelectElements();
+  emitSelectionChange(null);
+};
+
+// 点击问题列表时，把节点或连线定位到画布中心，方便快速排查
+const focusElement = (id: string) => {
+  if (!lf) return;
+  lf.selectElementById(id);
+  lf.focusOn({ id });
 };
 
 // 撤销/重做后主动刷新一次父组件状态，确保按钮和图数据同步
@@ -173,6 +426,38 @@ const redo = () => {
 
 // 直接返回当前画布里的原始图数据
 const getGraphData = () => lf?.getGraphData();
+
+// 更新节点或边的显示文本：
+// 例如节点标题、连线文字都走这条更新链路。
+const updateElementText = (id: string, value: string) => {
+  if (!lf) return;
+  lf.updateText(id, value);
+  refreshState();
+
+  const element = lf.getDataById(id);
+  if (!element) return;
+
+  emitSelectionChange({
+    kind: 'sourceNodeId' in element ? 'edge' : 'node',
+    data: element as any,
+  });
+};
+
+// 更新节点或边的自定义业务属性：
+// 这部分数据会进入 properties，后续保存 JSON、保存后端时会一起带上。
+const updateElementProperties = (id: string, properties: Record<string, any>) => {
+  if (!lf) return;
+  lf.setProperties(id, properties);
+  refreshState();
+
+  const element = lf.getDataById(id);
+  if (!element) return;
+
+  emitSelectionChange({
+    kind: 'sourceNodeId' in element ? 'edge' : 'node',
+    data: element as any,
+  });
+};
 
 // 给智能布局准备数据：在普通图数据基础上补上节点宽高
 const getLayoutGraphData = () => {
@@ -205,7 +490,7 @@ const applyNodePositions = (positions: NodePosition[]) => {
 
   positions.forEach((position) => {
     try {
-      lf.graphModel.moveNode2Coordinate(position.id, position.x, position.y);
+      lf?.graphModel.moveNode2Coordinate(position.id, position.x, position.y);
     } catch (error) {
       console.warn(`Failed to move node ${position.id}`, error);
     }
@@ -253,6 +538,34 @@ const optimizeEdgeRoutes = () => {
     incomingMap.get(edge.targetNodeId)?.push(edge);
   });
 
+  // 排序结果只依赖 nodeMap，循环外预排序一次，避免每条边都重复 slice+sort
+  const sortedOutgoing = new Map<string, any[]>();
+  const sortedIncoming = new Map<string, any[]>();
+  outgoingMap.forEach((edges, nodeId) => {
+    sortedOutgoing.set(
+      nodeId,
+      edges.slice().sort((a, b) => {
+        const targetA = nodeMap.get(a.targetNodeId);
+        const targetB = nodeMap.get(b.targetNodeId);
+        if (!targetA || !targetB) return 0;
+        if (targetA.y !== targetB.y) return targetA.y - targetB.y;
+        return targetA.x - targetB.x;
+      }),
+    );
+  });
+  incomingMap.forEach((edges, nodeId) => {
+    sortedIncoming.set(
+      nodeId,
+      edges.slice().sort((a, b) => {
+        const sourceA = nodeMap.get(a.sourceNodeId);
+        const sourceB = nodeMap.get(b.sourceNodeId);
+        if (!sourceA || !sourceB) return 0;
+        if (sourceA.y !== sourceB.y) return sourceA.y - sourceB.y;
+        return sourceA.x - sourceB.x;
+      }),
+    );
+  });
+
   // 统一把坐标处理成整数，避免折点出现很多小数
   const round = (value: number) => Math.round(value);
   const toPoint = (x: number, y: number): Point => ({ x: round(x), y: round(y) });
@@ -282,23 +595,11 @@ const optimizeEdgeRoutes = () => {
 
     if (!source || !target || !edgeModel) return;
 
-    // 同一起点的出边先按目标节点位置排序，决定谁走上面的通道、谁走下面的通道
-    const sourceOutgoing = (outgoingMap.get(edge.sourceNodeId) || []).slice().sort((a, b) => {
-      const targetA = nodeMap.get(a.targetNodeId);
-      const targetB = nodeMap.get(b.targetNodeId);
-      if (!targetA || !targetB) return 0;
-      if (targetA.y !== targetB.y) return targetA.y - targetB.y;
-      return targetA.x - targetB.x;
-    });
+    // 同一起点的出边已按目标节点位置预排序，决定谁走上面的通道、谁走下面的通道
+    const sourceOutgoing = sortedOutgoing.get(edge.sourceNodeId) || [];
 
-    // 同一终点的入边先按来源节点位置排序，决定汇入终点时的错位顺序
-    const targetIncoming = (incomingMap.get(edge.targetNodeId) || []).slice().sort((a, b) => {
-      const sourceA = nodeMap.get(a.sourceNodeId);
-      const sourceB = nodeMap.get(b.sourceNodeId);
-      if (!sourceA || !sourceB) return 0;
-      if (sourceA.y !== sourceB.y) return sourceA.y - sourceB.y;
-      return sourceA.x - sourceB.x;
-    });
+    // 同一终点的入边已按来源节点位置预排序，决定汇入终点时的错位顺序
+    const targetIncoming = sortedIncoming.get(edge.targetNodeId) || [];
 
     const outgoingIndex = Math.max(0, sourceOutgoing.findIndex((item) => item.id === edge.id));
     const incomingIndex = Math.max(0, targetIncoming.findIndex((item) => item.id === edge.id));
@@ -323,7 +624,7 @@ const optimizeEdgeRoutes = () => {
         endPoint,
       ]);
 
-      lf.updateAttributes(edge.id, {
+      lf?.updateAttributes(edge.id, {
         startPoint,
         endPoint,
         pointsList,
@@ -372,7 +673,7 @@ const optimizeEdgeRoutes = () => {
       endPoint,
     ]);
 
-    lf.updateAttributes(edge.id, {
+    lf?.updateAttributes(edge.id, {
       startPoint,
       endPoint,
       pointsList,
@@ -393,15 +694,36 @@ const setGraphData = (data: GraphData) => {
 const exportData = () => (lf ? JSON.stringify(lf.getGraphData(), null, 2) : '');
 
 // 从 JSON 字符串恢复流程图
+// 除了 JSON 语法，还校验基本结构和边引用，避免坏数据渲染坏画布
 const importData = (json: string) => {
+  let parsed: unknown;
   try {
-    const data = JSON.parse(json) as GraphData;
-    lf?.render(data);
-    refreshState();
+    parsed = JSON.parse(json);
   } catch (error) {
     console.error('Failed to import flow JSON', error);
     throw error;
   }
+
+  const data = parsed as Partial<GraphData> | null;
+  if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+    throw new Error('Invalid flow data structure');
+  }
+
+  // 丢弃缺少 id 的节点，以及引用不存在节点或自环的边
+  const validNodes = data.nodes.filter((node) => node && node.id != null);
+  const nodeIds = new Set(validNodes.map((node) => node.id));
+  const validEdges = data.edges.filter(
+    (edge) =>
+      edge &&
+      edge.sourceNodeId != null &&
+      edge.targetNodeId != null &&
+      nodeIds.has(edge.sourceNodeId) &&
+      nodeIds.has(edge.targetNodeId) &&
+      edge.sourceNodeId !== edge.targetNodeId,
+  );
+
+  lf?.render({ nodes: validNodes, edges: validEdges } as GraphData);
+  refreshState();
 };
 
 // 递归把 SVG 上每个元素的计算后样式写回内联 style
@@ -513,6 +835,10 @@ onMounted(() => {
     width: container.value.clientWidth,
     height: container.value.clientHeight,
     edgeType: 'polyline',
+    animation: {
+      edge: true,
+      node: false,
+    },
     keyboard: {
       enabled: true,
       shortcuts: [
@@ -523,6 +849,56 @@ onMounted(() => {
             if (!lf || lf.graphModel.textEditElement) return;
             event.preventDefault();
             deleteSelectedElements();
+          },
+          action: 'keydown',
+        },
+        {
+          // Ctrl/Cmd + A 全选当前画布内容
+          keys: ['ctrl + a', 'cmd + a'],
+          callback: (event: KeyboardEvent) => {
+            if (!lf || lf.graphModel.textEditElement) return;
+            event.preventDefault();
+            selectAllElements();
+          },
+          action: 'keydown',
+        },
+        {
+          // Ctrl/Cmd + C 复制当前选中元素
+          keys: ['ctrl + c', 'cmd + c'],
+          callback: (event: KeyboardEvent) => {
+            if (!lf || lf.graphModel.textEditElement) return;
+            event.preventDefault();
+            copySelectedElements();
+          },
+          action: 'keydown',
+        },
+        {
+          // Ctrl/Cmd + V 粘贴一份复制结果
+          keys: ['ctrl + v', 'cmd + v'],
+          callback: (event: KeyboardEvent) => {
+            if (!lf || lf.graphModel.textEditElement) return;
+            event.preventDefault();
+            pasteClipboardElements();
+          },
+          action: 'keydown',
+        },
+        {
+          // Ctrl/Cmd + D 快速重复创建当前选中元素
+          keys: ['ctrl + d', 'cmd + d'],
+          callback: (event: KeyboardEvent) => {
+            if (!lf || lf.graphModel.textEditElement) return;
+            event.preventDefault();
+            duplicateSelectedElements();
+          },
+          action: 'keydown',
+        },
+        {
+          // Esc 取消当前选中，方便快速收起多选框状态
+          keys: 'esc',
+          callback: (event: KeyboardEvent) => {
+            if (!lf || lf.graphModel.textEditElement) return;
+            event.preventDefault();
+            clearSelection();
           },
           action: 'keydown',
         },
@@ -538,7 +914,7 @@ onMounted(() => {
         },
       ],
     },
-    plugins: [SelectionSelect],
+    plugins: [SelectionSelect, MiniMap],
     edgeGenerator: (sourceNode, targetNode) => {
       if (!customConnectRule(sourceNode, targetNode)) return false;
       // 当前项目统一使用折线，便于后面做路由优化
@@ -552,8 +928,23 @@ onMounted(() => {
   lf.on('node:delete', refreshState);
   lf.on('edge:add', refreshState);
   lf.on('edge:delete', refreshState);
-  lf.on('graph:transform', emitGraphData);
+  lf.on('graph:transform', scheduleTransformSync);
   lf.on('text:update', refreshState);
+  // 选中节点、连线、多选框选或点击空白时，把选中结果同步给父组件。
+  lf.on('node:click', ({ data }) => {
+    emitSelectionChange({
+      kind: 'node',
+      data,
+    });
+  });
+  lf.on('edge:click', ({ data }) => {
+    emitSelectionChange({
+      kind: 'edge',
+      data,
+    });
+  });
+  lf.on('selection:selected', () => emitSelectionChange());
+  lf.on('blank:click', () => emitSelectionChange(null));
 
   lf.openSelectionSelect?.();
 
@@ -570,13 +961,24 @@ onMounted(() => {
   lf.render(props.modelValue || defaultGraphData);
   emitHistoryState();
   emitGraphData();
+  emitSelectionChange(null);
 });
 
 onBeforeUnmount(() => {
   // 组件销毁时移除事件并销毁 LogicFlow 实例，避免泄漏
   removeKeyboardFocusListener?.();
   removeKeyboardFocusListener = null;
+  if (transformSyncTimer !== null) {
+    window.clearTimeout(transformSyncTimer);
+    transformSyncTimer = null;
+  }
   lf?.destroy();
+});
+
+// 返回画布容器的实际尺寸，供父组件做布局计算，避免父组件用 DOM 选择器刺穿组件边界
+const getContainerSize = () => ({
+  width: container.value?.clientWidth || 1200,
+  height: container.value?.clientHeight || 800,
 });
 
 // 暴露给父组件的方法：
@@ -589,13 +991,23 @@ defineExpose({
   fitView,
   applyNodePositions,
   optimizeEdgeRoutes,
+  getContainerSize,
   setGraphData,
   exportData,
   importData,
   exportPngDataUrl,
+  updateElementText,
+  updateElementProperties,
   addRectNode,
   addDiamondNode,
+  addNodeFromTemplate,
   deleteSelectedElements,
+  selectAllElements,
+  clearSelection,
+  focusElement,
+  copySelectedElements,
+  pasteClipboardElements,
+  duplicateSelectedElements,
 });
 </script>
 

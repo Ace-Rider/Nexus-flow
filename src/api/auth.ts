@@ -1,15 +1,11 @@
 // src/api/auth.ts
 import request from './request';
+import type { GraphData } from '@/types/flow';
 
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
 }
-
-export type GraphData = {
-  nodes: any[];
-  edges: any[];
-};
 
 
 // 登录

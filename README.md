@@ -1,343 +1,343 @@
-# Nexus Flow · 可视化流程编排引擎
+# Nexus Flow
 
-## 📂 完整项目结构
+一个基于 `Vue 3 + TypeScript + LogicFlow` 的可视化流程设计器项目。  
+当前版本已经支持流程绘制、智能布局、属性编辑、流程校验、草稿自动保存、版本管理、JSON/PNG 导出、多选删除和快捷键操作。
 
-```
+## 项目定位
+
+这个项目不是单纯“展示一张流程图”，而是实现一个可编辑、可保存、可校验的前端流程设计器。
+
+它目前覆盖了一个小型流程编排工具的核心链路：
+
+- 登录鉴权与路由守卫
+- 画布绘制与流程编辑
+- 节点/边属性编辑
+- 智能布局与边路线优化
+- 流程结构校验
+- 本地草稿自动保存与恢复
+- 版本管理与历史恢复
+- JSON / PNG 导入导出
+- Mock 后端读写流程数据
+
+## 技术栈
+
+| 分类 | 技术 |
+| --- | --- |
+| 前端框架 | Vue 3 |
+| 开发语言 | TypeScript |
+| 路由 | Vue Router 4 |
+| 状态管理 | Pinia |
+| UI 组件库 | Element Plus |
+| 流程图引擎 | LogicFlow |
+| 请求库 | Axios |
+| Mock 服务 | Express |
+| 构建工具 | Vue CLI 5 |
+
+## 当前功能
+
+### 画布编辑
+
+- 新增矩形节点
+- 新增条件节点
+- 节点拖拽
+- 节点连线
+- 框选多个节点或边
+- 删除选中元素
+- 撤销 / 重做
+
+### 流程能力
+
+- 智能布局
+- 边路径二次优化
+- 流程结构校验
+- 节点 / 边属性编辑
+- 节点 / 边更完整的业务字段编辑
+- 本地草稿自动保存与恢复
+
+### 数据能力
+
+- 导入 JSON
+- 导出 JSON
+- 导出 PNG
+- Mock 后端读取流程
+- Mock 后端保存流程
+
+### 交互增强
+
+- `Delete` / `Backspace` 删除选中元素
+- `Ctrl/Cmd + Z` 撤销
+- `Ctrl/Cmd + Y` 重做
+- `Ctrl/Cmd + Shift + Z` 重做
+
+## 目录结构
+
+```text
 nexus-flow/
-│
-├── public/                          # 静态资源（原样复制到构建输出）
-│   ├── index.html                  # 应用 HTML 入口
-│   └── worker.js                   # Web Worker（处理布局计算）
-│
-├── src/                            # 源代码目录
-│   ├── api/                        # API 层
-│   │   ├── auth.ts                # 认证相关 API 接口
-│   │   └── request.ts             # Axios 实例封装（拦截器）
-│   │
-│   ├── assets/                     # 静态资源
-│   │   └── main.css               # 全局样式
-│   │
-│   ├── components/                 # Vue 组件
-│   │   └── FlowDesigner.vue       # 核心：流程设计器画布组件
-│   │
-│   ├── router/                     # 路由配置
-│   │   └── index.ts              # 路由定义 + 导航守卫
-│   │
-│   ├── stores/                     # Pinia 状态管理
-│   │   └── auth.ts               # 认证状态（Token 管理）
-│   │
-│   ├── utils/                      # 工具函数
-│   │   └── performance.ts        # 性能优化工具（Worker 调度）
-│   │
-│   ├── views/                      # 页面组件
-│   │   ├── Login.vue             # 登录页面
-│   │   └── Designer.vue          # 流程设计主页面
-│   │
-│   ├── App.vue                    # 根组件
-│   ├── main.ts                    # 应用入口
-│   └── shims-vue.d.ts            # Vue 模块声明
-│
-├── .env.development.ts            # 开发环境变量
-├── mock-server.js                 # Express Mock 服务器
-├── package.json                   # 项目依赖配置
-├── tsconfig.json                  # TypeScript 配置
-└── vue.config.js                 # Vue CLI 配置
+├─ public/
+│  ├─ index.html
+│  └─ worker.js
+├─ src/
+│  ├─ api/
+│  │  ├─ auth.ts
+│  │  └─ request.ts
+│  ├─ assets/
+│  │  └─ main.css
+│  ├─ components/
+│  │  ├─ FlowDesigner.vue
+│  │  └─ PropertyPanel.vue
+│  ├─ router/
+│  │  └─ index.ts
+│  ├─ stores/
+│  │  └─ auth.ts
+│  ├─ types/
+│  │  └─ flow.ts
+│  ├─ utils/
+│  │  ├─ version.ts
+│  │  └─ performance.ts
+│  ├─ views/
+│  │  ├─ Designer.vue
+│  │  └─ Login.vue
+│  ├─ App.vue
+│  ├─ main.ts
+│  └─ shims-vue.d.ts
+├─ mock-server.js
+├─ request文件笔记.md
+├─ worker.md
+├─ package.json
+├─ tsconfig.json
+├─ vue.config.js
+└─ README.md
 ```
 
----
+## 核心模块说明
 
-## 🏗️ 核心模块说明
+### `src/views/Designer.vue`
 
-### 1️⃣ FlowDesigner.vue（核心画布组件）
+设计器主页面，负责页面级业务编排：
 
-**文件位置**: `src/components/FlowDesigner.vue`
+- 工具栏按钮交互
+- 流程加载与保存
+- 流程校验
+- 草稿自动保存与恢复
+- 版本管理与历史恢复
+- 属性面板状态管理
+- 智能布局调用
+- JSON / PNG 导入导出
 
-**职责**: 封装 LogicFlow 流程引擎，提供可视化流程设计能力
+它是整个项目的“业务层”。
 
-**核心功能**:
+### `src/components/FlowDesigner.vue`
+
+对 `LogicFlow` 的封装，是画布核心组件：
+
 - 初始化 LogicFlow 实例
-- 注册插件（SelectionSelect、Snapline、History）
-- 管理节点和边的渲染
-- 提供 undo/redo 能力
-- 暴露导出/导入 JSON 方法
+- 注册框选插件
+- 监听节点、边、历史记录、选区变化
+- 暴露新增、删除、导入导出、布局应用等方法
+- 同步当前选中元素
+- 更新节点 / 边文本和属性
+- 提供 PNG 导出能力
 
-**关键技术**:
-```typescript
-// 注册插件
-LogicFlow.use(SelectionSelect);  // 框选
-LogicFlow.use(Snapline);         // 对齐辅助线
-LogicFlow.use(History);          // 历史记录
+它是整个项目的“画布层”。
 
-// 暴露方法给父组件
-defineExpose({ undo, redo, getGraphData, setGraphData, exportData, importData });
+### `src/components/PropertyPanel.vue`
+
+右侧属性面板组件：
+
+- 根据当前选中元素显示不同表单
+- 支持节点属性编辑
+- 支持边属性编辑
+- 将输入中的表单值同步给父组件
+- 点击“应用修改”后由父组件统一写回画布
+
+### `src/types/flow.ts`
+
+流程图共享类型定义文件，统一了：
+
+- `GraphNode`
+- `GraphEdge`
+- `GraphData`
+- `SelectedElement`
+- `PropertyForm`
+
+### `src/utils/performance.ts`
+
+负责性能优化和 Worker 调度：
+
+- `runLayoutInWorker()` 把布局计算交给 Web Worker
+- 避免大图布局时阻塞主线程
+
+### `src/utils/version.ts`
+
+负责流程版本管理：
+
+- 保存当前流程快照
+- 读取和删除历史版本
+- 限制版本数量，避免本地存储无限增长
+
+### `public/worker.js`
+
+智能布局算法运行在这里：
+
+- 处理节点层级与位置计算
+- 计算适合当前画布的节点坐标
+- 将结果返回给主线程更新 LogicFlow
+
+### `src/api/request.ts`
+
+Axios 请求封装：
+
+- 自动注入 token
+- 统一处理 401
+- refresh token 队列化处理
+
+### `src/stores/auth.ts`
+
+Pinia 鉴权状态：
+
+- 维护 `accessToken`
+- 维护 `refreshToken`
+- 提供登录与刷新 token 能力
+
+## 关键交互链路
+
+### 1. 点击节点后，属性面板如何联动
+
+```text
+点击节点
+-> LogicFlow 触发 node:click
+-> FlowDesigner.vue 发出 selection-change
+-> Designer.vue 执行 onSelectionChange
+-> 更新 selectedElement 和 propertyForm
+-> PropertyPanel.vue 根据当前数据渲染对应表单
 ```
 
----
+### 2. 点击“应用修改”后，如何写回节点/边
 
-### 2️⃣ Designer.vue（设计器主页面）
-
-**文件位置**: `src/views/Designer.vue`
-
-**职责**: 流程设计器的业务层，协调 UI 和数据
-
-**核心功能**:
-- 工具栏（撤销/重做/导入/导出/智能布局/保存）
-- 加载和保存流程数据
-- 调用 Web Worker 执行智能布局
-- 管理 FlowDesigner 子组件
-
-**核心方法**:
-- `handleSmartLayout()` - 调用 Worker 计算新布局
-- `saveFlow()` / `loadFlow()` - 持久化流程数据
-
----
-
-### 3️⃣ auth.ts（认证状态管理）
-
-**文件位置**: `src/stores/auth.ts`
-
-**职责**: 管理用户认证状态和 Token
-
-**核心功能**:
-- 存储 accessToken 和 refreshToken
-- 提供登录方法
-- 提供 Token 自动刷新方法
-
-**核心逻辑**:
-```typescript
-// Token 存储在 localStorage 实现持久化
-const accessToken = ref<string | null>(localStorage.getItem('accessToken'));
-const refreshToken = ref<string | null>(localStorage.getItem('refreshToken'));
+```text
+点击应用修改
+-> PropertyPanel.vue 发出 apply
+-> Designer.vue 执行 applyPropertyChanges
+-> 通过 designerRef 调用 FlowDesigner 暴露的方法
+-> FlowDesigner.vue 调用 lf.updateText / lf.setProperties
+-> refreshState()
+-> emitSelectionChange(...)
+-> 画布数据和当前表单一起同步更新
 ```
 
----
+### 3. 智能布局链路
 
-### 4️⃣ request.ts（Axios 封装）
-
-**文件位置**: `src/api/request.ts`
-
-**职责**: HTTP 请求的统一封装和拦截处理
-
-**核心功能**:
-- 请求拦截：自动注入 Authorization Header
-- 响应拦截：处理 401 未授权，自动刷新 Token
-- 刷新 Token 队列管理：避免并发刷新
-
-**关键机制**:
-```typescript
-// 标记是否正在刷新 Token
-let isRefreshing = false;
-// 存储等待 Token 的请求
-let failedQueue: Array<{ resolve, reject }>[];
-
-// 401 时自动刷新 Token
-if (error.response?.status === 401) {
-    // 排队等待或发起刷新请求
-}
+```text
+点击智能布局
+-> Designer.vue 获取当前图数据
+-> 调用 runLayoutInWorker()
+-> worker.js 计算新的节点坐标
+-> FlowDesigner.vue 应用节点位置
+-> 再执行边路径优化
+-> fitView 展示整张图
 ```
 
----
+## 流程校验规则
 
-### 5️⃣ performance.ts（性能优化工具）
+当前已经实现的基础校验包括：
 
-**文件位置**: `src/utils/performance.ts`
+- 空流程校验
+- 坏连线校验
+- 起点缺失校验
+- 终点缺失校验
+- 孤立节点校验
+- 图不连通校验
 
-**职责**: 性能优化相关工具函数
+校验入口有两个：
 
-**核心功能**:
-- `measureLatency()` - 测量函数执行耗时
-- `runLayoutInWorker()` - 将密集计算分发到 Web Worker
+- 工具栏手动点击“校验流程”
+- 点击“保存流程”前自动校验
 
-**Worker 通信机制**:
-```typescript
-const worker = new Worker('/worker.js');
-worker.postMessage({ type: 'LAYOUT', data: { nodes, width, height } });
-worker.onmessage = (e) => {
-    if (e.data.type === 'LAYOUT_RESULT') {
-        resolve(e.data.data);  // 接收计算结果
-        worker.terminate();    // 销毁 Worker
-    }
-};
-```
+## 属性面板支持字段
 
----
+### 节点
 
-### 6️⃣ worker.js（Web Worker）
+- 名称：`text`
+- 审批人：`properties.assignee`
+- 描述：`properties.description`
+- 超时时间：`properties.timeoutMinutes`
+- 备注：`properties.remark`
 
-**文件位置**: `public/worker.js`
+### 边
 
-**职责**: 在独立线程执行布局算法，不阻塞主线程
+- 连线文本：`text`
+- 条件表达式：`properties.condition`
+- 优先级：`properties.priority`
+- 备注：`properties.remark`
 
-**算法**: 简化的网格布局
-```javascript
-const cols = Math.ceil(Math.sqrt(nodes.length));
-const row = Math.floor(idx / cols);
-const col = idx % cols;
-const cellW = width / (cols + 1);
-const cellH = height / (cols + 1);
-```
+这些属性会随着：
 
----
+- 本地草稿
+- JSON 导出
+- Mock 保存
 
-### 7️⃣ router/index.ts（路由配置）
+一起持久化。
 
-**文件位置**: `src/router/index.ts`
+## 本地开发
 
-**职责**: 路由管理和导航守卫
-
-**路由表**:
-
-| 路径 | 组件 | 需要认证 |
-|------|------|----------|
-| `/login` | Login.vue | ❌ |
-| `/` | Designer.vue | ✅ |
-
-**导航守卫逻辑**:
-```typescript
-// 未登录访问需认证页面 → 重定向到 /login
-// 已登录访问登录页 → 重定向到 /
-if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/login');
-}
-```
-
----
-
-### 8️⃣ Login.vue（登录页面）
-
-**文件位置**: `src/views/Login.vue`
-
-**职责**: 用户登录界面
-
-**功能**:
-- 表单验证（用户名、密码必填）
-- 调用 authStore.login() 进行认证
-- 演示模式：任意账号都可登录
-
----
-
-### 9️⃣ mock-server.js（Mock 服务器）
-
-**文件位置**: `mock-server.js`
-
-**职责**: 模拟后端 API 服务
-
-**接口**:
-
-| 方法 | 路径 | 功能 |
-|------|------|------|
-| POST | `/api/auth/login` | 登录，返回 Token |
-| POST | `/api/auth/refresh` | 刷新 Token |
-| GET | `/api/flows/:id` | 获取流程数据 |
-| POST | `/api/flows/:id` | 保存流程数据 |
-
----
-
-## 🔗 模块依赖关系图
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         App.vue                                  │
-│                           │                                      │
-│                           ▼                                      │
-│                    router/index.ts                               │
-│                     (导航守卫)                                    │
-│                    ┌────┴────┐                                   │
-│                    ▼         ▼                                   │
-│              ┌────────┐  ┌────────┐                              │
-│              │ Login  │  │Designer│                              │
-│              │.vue    │  │.vue    │                              │
-│              └────────┘  └────┬───┘                              │
-│                               │                                   │
-│                    ┌──────────▼──────────┐                       │
-│                    │   FlowDesigner.vue  │                       │
-│                    │   (LogicFlow 封装)   │                       │
-│                    └──────────┬──────────┘                       │
-│                               │                                   │
-│         ┌────────────────────┼────────────────────┐              │
-│         │                    │                    │              │
-│         ▼                    ▼                    ▼              │
-│   ┌───────────┐      ┌────────────┐       ┌────────────┐         │
-│   │ auth.ts   │      │performance │       │   api/     │         │
-│   │ (状态)    │      │    .ts     │       │  request   │         │
-│   └─────┬─────┘      └─────┬──────┘       └─────┬──────┘         │
-│         │                  │                    │                │
-│         ▼                  ▼                    ▼                │
-│   ┌───────────┐      ┌───────────┐       ┌───────────┐         │
-│   │localStorage│      │ worker.js │       │ axios     │         │
-│   └───────────┘      └───────────┘       └─────┬─────┘         │
-│                                                  │                │
-│                                                  ▼                │
-│                                          ┌───────────────┐        │
-│                                          │ mock-server   │        │
-│                                          │ (port 3000)   │        │
-│                                          └───────────────┘        │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📊 技术栈总结
-
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| **框架** | Vue 3 | 组合式 API (Composition API) |
-| **语言** | TypeScript | 强类型，提升代码质量 |
-| **路由** | Vue Router 4 | 官方路由解决方案 |
-| **状态** | Pinia | 轻量级状态管理 |
-| **UI** | Element Plus | Vue 3 组件库 |
-| **流程引擎** | @logicflow/core | 流程图可视化引擎 |
-| **HTTP** | Axios | HTTP 请求库 |
-| **构建** | Vue CLI 5 | 项目脚手架 |
-| **后端** | Express 5 | Mock 服务器 |
-
----
-
-## 🚀 快速开始
-
-### 安装依赖
+### 1. 安装依赖
 
 ```bash
 npm install
 ```
 
-### 启动开发服务器
+### 2. 启动前端
 
 ```bash
 npm run serve
 ```
 
-### 启动 Mock 服务器（另一个终端）
+默认地址：
 
-```bash
-node mock-server.js
+```text
+http://localhost:8080
 ```
 
-### 访问应用
+### 3. 启动 Mock 服务
 
-打开浏览器访问 http://localhost:8080
+```bash
+npm run mock
+```
 
----
+默认地址：
 
-## ⚠️ 已知问题
+```text
+http://localhost:3000
+```
 
-### 1. ESLint 配置问题
-ESLint 配置文件可能缺失或损坏，导致 lint 检查失败。
+## Mock 接口
 
-### 2. graph:transform 事件误用
-`FlowDesigner.vue` 中使用 `graph:transform` 事件进行数据同步，该事件在画布平移/缩放时也会触发，可能导致性能问题。
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/auth/login` | 登录，返回 mock token |
+| POST | `/api/auth/refresh` | 刷新 access token |
+| GET | `/api/flows/:id` | 获取流程数据 |
+| POST | `/api/flows/:id` | 保存流程数据 |
 
-### 3. Token 刷新竞态条件
-在 `request.ts` 中，当 Token 刷新失败时，等待队列中的请求处理逻辑存在潜在问题。
+Mock 登录规则：
 
-### 4. 大量使用 `any` 类型
-多处使用 `any` 类型，降低了 TypeScript 的类型安全性。
+- 用户名和密码只要都非空，就允许登录
 
-### 5. Web Worker 路径问题
-生产环境部署时，`/worker.js` 路径可能无法正确解析。
+## 默认体验说明
 
----
+- 首次进入设计器时，如果后端没有流程数据，会使用默认图或空图
+- 如果本地存在未保存草稿，会提示是否恢复
+- 右侧属性面板当前只支持单选编辑，不支持批量编辑
 
-## 📝 License
+## 常用命令
+
+```bash
+npm run serve
+npm run mock
+npm run lint
+npm run build
+```
+
+## License
 
 Private Project - All Rights Reserved
