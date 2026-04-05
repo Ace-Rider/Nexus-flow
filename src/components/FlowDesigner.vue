@@ -85,6 +85,14 @@ const defaultGraphData: GraphData = {
   ],
 };
 
+// LogicFlow 2.x 的 render 参数是 LogicFlow.GraphConfigData（节点 type 必填），
+// 而画布数据里 type 是可选字段：渲染前统一兜底
+const toRenderData = (data: GraphData): never =>
+  ({
+    nodes: data.nodes.map((node) => ({ ...node, type: node.type ?? 'rect' })),
+    edges: data.edges,
+  }) as never;
+
 // 把当前画布里的整张图同步给父组件的 v-model
 const emitGraphData = () => {
   if (!lf) return;
@@ -686,7 +694,7 @@ const optimizeEdgeRoutes = () => {
 
 // 用一整份图数据重绘画布，同时把最新状态再同步回父组件
 const setGraphData = (data: GraphData) => {
-  lf?.render(data);
+  lf?.render(toRenderData(data));
   refreshState();
 };
 
@@ -722,7 +730,7 @@ const importData = (json: string) => {
       edge.sourceNodeId !== edge.targetNodeId,
   );
 
-  lf?.render({ nodes: validNodes, edges: validEdges } as GraphData);
+  lf?.render(toRenderData({ nodes: validNodes, edges: validEdges } as GraphData));
   refreshState();
 };
 
@@ -946,7 +954,10 @@ onMounted(() => {
   lf.on('selection:selected', () => emitSelectionChange());
   lf.on('blank:click', () => emitSelectionChange(null));
 
-  lf.openSelectionSelect?.();
+  // LogicFlow 2.x 框选插件默认不启用，需要显式打开；
+  // 这里在初始化时开启框选，与升级前的行为保持一致
+  // （插件实例在类型声明上是宽泛的 Extension 联合类型，经 unknown 收窄到实际插件接口）
+  (lf.extension.selectionSelect as unknown as { open: () => void } | undefined)?.open();
 
   // 让画布在点击后拿到焦点，这样键盘快捷键才能稳定生效
   const graphContainer = lf.container;
@@ -958,7 +969,7 @@ onMounted(() => {
   focusGraphContainer();
 
   // 父组件有数据就渲染父组件的数据，没有就先用默认示例图
-  lf.render(props.modelValue || defaultGraphData);
+  lf.render(toRenderData(props.modelValue || defaultGraphData));
   emitHistoryState();
   emitGraphData();
   emitSelectionChange(null);
