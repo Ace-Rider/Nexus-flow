@@ -5,9 +5,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import LogicFlow from '@logicflow/core';
-import '@logicflow/core/dist/style/index.css';
+import '@logicflow/core/es/index.css';
 import { MiniMap, SelectionSelect } from '@logicflow/extension';
-import '@logicflow/extension/lib/style/index.css';
+import '@logicflow/extension/es/index.css';
 import type { FlowClipboardData, GraphData, SelectedElement } from '@/types/flow';
 
 type AddNodeType = 'rect' | 'diamond';
