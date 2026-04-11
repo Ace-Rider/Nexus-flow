@@ -958,6 +958,8 @@ onMounted(() => {
   // 这里在初始化时开启框选，与升级前的行为保持一致
   // （插件实例在类型声明上是宽泛的 Extension 联合类型，经 unknown 收窄到实际插件接口）
   (lf.extension.selectionSelect as unknown as { open: () => void } | undefined)?.open();
+  // 2.x 的 MiniMap 同样改为默认隐藏，需要显式 show
+  (lf.extension.miniMap as unknown as { show: () => void } | undefined)?.show();
 
   // 让画布在点击后拿到焦点，这样键盘快捷键才能稳定生效
   const graphContainer = lf.container;
@@ -970,6 +972,19 @@ onMounted(() => {
 
   // 父组件有数据就渲染父组件的数据，没有就先用默认示例图
   lf.render(toRenderData(props.modelValue || defaultGraphData));
+  // LogicFlow 2.x 的 MiniMap 存在竞态：内部可能在挂载容器就绪前就把 isShow
+  // 置为 true（DOM 实际未创建），导致后续 show() 被 if (!isShow) 短路而永不渲染；
+  // 而 hide() 又会因内部 lfMap 未初始化抛错。这里在主画布渲染完成后（容器已注入）
+  // 直接复位 isShow 再 show，让插件重新走完整的挂载流程
+  setTimeout(() => {
+    if (!lf) return;
+    const miniMap = lf.extension.miniMap as unknown as
+      | { isShow?: boolean; show?: () => void }
+      | undefined;
+    if (!miniMap) return;
+    miniMap.isShow = false;
+    miniMap.show?.();
+  }, 0);
   emitHistoryState();
   emitGraphData();
   emitSelectionChange(null);

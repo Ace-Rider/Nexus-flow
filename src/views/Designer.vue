@@ -1048,7 +1048,8 @@ onBeforeUnmount(() => {
   background-size: 28px 28px, 28px 28px, auto;
 }
 
-.designer-canvas :deep(.lf-minimap) {
+/* LogicFlow 2.x 小地图的 DOM 类名是 lf-mini-map */
+.designer-canvas :deep(.lf-mini-map) {
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.16);
   border-radius: 16px;
 }
