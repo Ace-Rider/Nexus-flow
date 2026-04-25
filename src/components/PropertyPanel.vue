@@ -9,8 +9,56 @@
       请选择一个节点或连线
     </div>
 
-    <div v-else-if="selectedElement.kind === 'multiple'" class="property-panel__empty">
-      当前选中了多个元素，暂不支持批量编辑
+    <div v-else-if="selectedElement.kind === 'multiple'" class="property-panel__batch">
+      <div class="property-panel__meta">
+        <span>已选中 {{ selectedElement.data.nodes.length }} 个节点</span>
+        <span v-if="selectedElement.data.edges.length > 0">
+          另有 {{ selectedElement.data.edges.length }} 条连线，批量编辑仅作用于节点
+        </span>
+      </div>
+
+      <el-form label-position="top" class="property-panel__form">
+        <div class="property-panel__batch-row">
+          <el-checkbox v-model="batchForm.applyAssignee" label="审批人" />
+          <el-input
+            v-model="batchForm.assignee"
+            :disabled="!batchForm.applyAssignee"
+            placeholder="统一设置审批人"
+          />
+        </div>
+
+        <div class="property-panel__batch-row">
+          <el-checkbox v-model="batchForm.applyTimeout" label="超时（分钟）" />
+          <el-input-number
+            v-model="batchForm.timeoutMinutes"
+            :disabled="!batchForm.applyTimeout"
+            :min="0"
+            :max="9999"
+            controls-position="right"
+          />
+        </div>
+
+        <div class="property-panel__batch-row">
+          <el-checkbox v-model="batchForm.applyRemark" label="备注" />
+          <el-input
+            v-model="batchForm.remark"
+            :disabled="!batchForm.applyRemark"
+            placeholder="统一设置备注"
+          />
+        </div>
+
+        <div class="property-panel__batch-row">
+          <el-checkbox v-model="batchForm.applyType" label="转换为" />
+          <el-select v-model="batchForm.nodeType" :disabled="!batchForm.applyType">
+            <el-option label="矩形节点" value="rect" />
+            <el-option label="菱形节点（条件）" value="diamond" />
+          </el-select>
+        </div>
+      </el-form>
+
+      <div class="property-panel__actions">
+        <el-button type="primary" @click="handleApplyBatch">批量应用</el-button>
+      </div>
     </div>
 
     <template v-else-if="selectedElement.kind === 'node'">

@@ -34,6 +34,19 @@
         >
           <strong>{{ flow.name }}</strong>
           <span>{{ formatWorkspaceTime(flow.updatedAt) }}</span>
+          <!-- 内层不能再嵌 button（HTML 不允许），用 span 承载操作并阻止冒泡 -->
+          <span class="workspace-flow-tab__actions" @click.stop>
+            <span
+              class="workspace-flow-tab__action"
+              title="重命名流程"
+              @click.stop="renameFlowWorkspace(flow)"
+            >✎</span>
+            <span
+              class="workspace-flow-tab__action is-danger"
+              title="删除流程"
+              @click.stop="removeFlowWorkspace(flow)"
+            >✕</span>
+          </span>
         </button>
 
         <el-button size="small" type="primary" plain @click="createFlowWorkspace">
@@ -423,6 +436,55 @@ const createFlowWorkspace = async () => {
   });
   lastSavedSnapshot = getGraphSnapshot({ nodes: [], edges: [] });
   await loadFlow();
+};
+
+// 重命名流程：弹窗输入新名称，空名称由 composable 统一拒绝
+const renameFlowWorkspace = async (flow: WorkspaceFlowRecord) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入新的流程名称', '重命名流程', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputValue: flow.name,
+      inputPattern: /\S+/,
+      inputErrorMessage: '流程名称不能为空',
+    });
+    if (renameWorkspaceFlow(flow.id, value)) {
+      ElMessage.success('流程已重命名');
+    }
+  } catch {
+    // 用户取消重命名
+  }
+};
+
+// 删除流程：确认后连同本地草稿和版本记录一起清理；
+// 删除的是激活流程时，composable 会自动切到剩余第一个，这里负责加载它
+const removeFlowWorkspace = async (flow: WorkspaceFlowRecord) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除流程「${flow.name}」吗？本地草稿和版本记录会一并删除，且无法恢复。`,
+      '删除流程',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  const wasActive = flow.id === activeFlowId.value;
+  if (!removeWorkspaceFlow(flow.id)) {
+    ElMessage.warning('至少需要保留一个流程');
+    return;
+  }
+
+  ElMessage.success('流程已删除');
+  if (wasActive) {
+    cancelDraftWrite();
+    refreshVersions(activeFlowId.value);
+    await loadFlow();
+  }
 };
 
 // 子组件会通过 history-change 事件把撤销/重做可用状态同步上来
