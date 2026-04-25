@@ -136,6 +136,7 @@
         :form="propertyForm"
         @update:form="handlePropertyFormChange"
         @apply="applyPropertyChanges"
+        @apply-batch="handleApplyBatchEdit"
       />
     </div>
 
@@ -220,6 +221,8 @@ import type {
   FlowVersionRecord,
   PropertyForm,
   SelectedElement,
+  WorkspaceFlowRecord,
+  BatchEditPayload,
 } from '@/types/flow';
 
 type LayoutNode = GraphNode & {
@@ -275,6 +278,8 @@ const {
   initWorkspaceFlows,
   syncActiveFlowRecord,
   createWorkspaceFlow,
+  renameWorkspaceFlow,
+  removeWorkspaceFlow,
   formatWorkspaceTime,
 } = useWorkspaceFlows();
 
@@ -515,6 +520,34 @@ const applyPropertyChanges = () => {
   }
 
   ElMessage.success('属性已更新');
+};
+
+// 多选批量编辑：先转换节点类型（会保留属性），再应用勾选的业务属性。
+// 载荷里只包含勾选的字段，未勾选的属性保持原值。
+const handleApplyBatchEdit = (payload: BatchEditPayload) => {
+  if (!selectedElement.value || selectedElement.value.kind !== 'multiple') return;
+
+  const nodeIds = selectedElement.value.data.nodes.map((node) => node.id);
+  if (nodeIds.length === 0) {
+    ElMessage.warning('当前没有选中的节点可批量编辑');
+    return;
+  }
+  if (Object.keys(payload).length === 0) {
+    ElMessage.warning('请至少勾选一项要批量应用的字段');
+    return;
+  }
+
+  let updated = 0;
+  if (payload.nodeType) {
+    updated = designerRef.value?.batchChangeNodeType(nodeIds, payload.nodeType) || 0;
+  }
+
+  const { nodeType: _nodeType, ...propertyPayload } = payload;
+  if (Object.keys(propertyPayload).length > 0) {
+    updated = designerRef.value?.batchUpdateNodeProperties(nodeIds, propertyPayload) || updated;
+  }
+
+  ElMessage.success(`已批量更新 ${updated} 个节点`);
 };
 
 const focusValidationIssue = (issue: ValidationIssue) => {
@@ -893,6 +926,7 @@ onBeforeUnmount(() => {
 }
 
 .workspace-flow-tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -927,6 +961,44 @@ onBeforeUnmount(() => {
 
 .workspace-flow-tab:hover {
   transform: translateY(-1px);
+}
+
+/* 操作按钮默认隐藏，悬停或激活时出现，避免和流程名抢视觉焦点 */
+.workspace-flow-tab__actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.workspace-flow-tab:hover .workspace-flow-tab__actions,
+.workspace-flow-tab.is-active .workspace-flow-tab__actions {
+  opacity: 1;
+}
+
+.workspace-flow-tab__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.workspace-flow-tab__action:hover {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+
+.workspace-flow-tab__action.is-danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
 }
 
 .workspace-bar__search {

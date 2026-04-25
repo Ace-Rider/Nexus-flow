@@ -81,6 +81,39 @@ export function useWorkspaceFlows() {
     return id;
   };
 
+  // 重命名流程：空名称直接拒绝，成功后刷新更新时间
+  const renameWorkspaceFlow = (flowId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    saveWorkspaceFlows(
+      workspaceFlows.value.map((item) =>
+        item.id === flowId ? { ...item, name: trimmed, updatedAt: new Date().toISOString() } : item,
+      ),
+    );
+    return true;
+  };
+
+  // 删除流程：连同本地草稿和版本记录一起清理；
+  // 删除的是激活流程时自动切换到剩余的第一个；至少保留一个流程。
+  // 存储键与 useFlowDraft.ts / utils/version.ts 中的定义保持一致。
+  const removeWorkspaceFlow = (flowId: string) => {
+    if (workspaceFlows.value.length <= 1) return false;
+
+    try {
+      localStorage.removeItem(`nexus-flow:draft:${flowId}`);
+      localStorage.removeItem(`nexus-flow:versions:${flowId}`);
+    } catch (error) {
+      console.warn('Failed to clean flow storage', error);
+    }
+
+    const nextFlows = workspaceFlows.value.filter((item) => item.id !== flowId);
+    saveWorkspaceFlows(nextFlows);
+    if (activeFlowId.value === flowId) {
+      activeFlowId.value = nextFlows[0].id;
+    }
+    return true;
+  };
+
   const formatWorkspaceTime = (value: string) => new Date(value).toLocaleDateString();
 
   return {
@@ -90,6 +123,8 @@ export function useWorkspaceFlows() {
     initWorkspaceFlows,
     syncActiveFlowRecord,
     createWorkspaceFlow,
+    renameWorkspaceFlow,
+    removeWorkspaceFlow,
     formatWorkspaceTime,
   };
 }

@@ -467,6 +467,46 @@ const updateElementProperties = (id: string, properties: Record<string, any>) =>
   });
 };
 
+// 批量更新多个节点的业务属性（属性面板多选批量编辑用）：
+// setProperties 是整体覆盖，所以每个节点先取旧属性再合并传入的字段。
+const batchUpdateNodeProperties = (ids: string[], properties: Record<string, any>) => {
+  if (!lf || ids.length === 0) return 0;
+
+  let updated = 0;
+  // 用 for...of 而不是 forEach：循环体和守卫在同一作用域，TS 的空值收窄直接生效
+  for (const id of ids) {
+    const model = lf.getNodeModelById(id);
+    if (!model) continue;
+    lf.setProperties(id, { ...(model.properties || {}), ...properties });
+    updated += 1;
+  }
+
+  if (updated > 0) {
+    refreshState();
+    emitSelectionChange();
+  }
+  return updated;
+};
+
+// 批量切换节点类型（rect <-> diamond）：
+// LogicFlow 会保留节点的位置、文本和已有属性。
+const batchChangeNodeType = (ids: string[], type: string) => {
+  if (!lf || ids.length === 0) return 0;
+
+  let changed = 0;
+  for (const id of ids) {
+    if (!lf.getNodeModelById(id)) continue;
+    lf.changeNodeType(id, type);
+    changed += 1;
+  }
+
+  if (changed > 0) {
+    refreshState();
+    emitSelectionChange();
+  }
+  return changed;
+};
+
 // 给智能布局准备数据：在普通图数据基础上补上节点宽高
 const getLayoutGraphData = () => {
   if (!lf) return null;
@@ -843,6 +883,8 @@ onMounted(() => {
     width: container.value.clientWidth,
     height: container.value.clientHeight,
     edgeType: 'polyline',
+    // LogicFlow 2.x 内置的节点缩放：拖拽节点四角控制点即可调整宽高
+    allowResize: true,
     animation: {
       edge: true,
       node: false,
@@ -1024,6 +1066,8 @@ defineExpose({
   exportPngDataUrl,
   updateElementText,
   updateElementProperties,
+  batchUpdateNodeProperties,
+  batchChangeNodeType,
   addRectNode,
   addDiamondNode,
   addNodeFromTemplate,

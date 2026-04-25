@@ -47,6 +47,15 @@ export type PropertyForm = {
   remark: string;
 };
 
+// 多选批量编辑的载荷：只包含用户勾选要应用的字段，
+// 未勾选的字段不出现在对象里，避免覆盖节点原有属性。
+export type BatchEditPayload = {
+  assignee?: string;
+  timeoutMinutes?: number;
+  remark?: string;
+  nodeType?: 'rect' | 'diamond';
+};
+
 // 流程版本管理使用的版本记录：
 // 既保留版本快照，也保留节点/边数量，方便在历史里快速看出差异。
 export type FlowVersionRecord = {

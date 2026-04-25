@@ -124,7 +124,8 @@
 </template>
 
 <script setup lang="ts">
-import type { PropertyForm, SelectedElement } from '@/types/flow';
+import { reactive } from 'vue';
+import type { BatchEditPayload, PropertyForm, SelectedElement } from '@/types/flow';
 
 const props = defineProps<{
   selectedElement: SelectedElement;
@@ -134,7 +135,30 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:form', value: PropertyForm): void;
   (e: 'apply'): void;
+  (e: 'apply-batch', payload: BatchEditPayload): void;
 }>();
+
+// 批量编辑表单：先勾选字段再填写，只有勾选的字段会进入应用载荷，
+// 这样用户可以只改审批人而不用担心覆盖其它属性。
+const batchForm = reactive({
+  applyAssignee: false,
+  assignee: '',
+  applyTimeout: false,
+  timeoutMinutes: 30,
+  applyRemark: false,
+  remark: '',
+  applyType: false,
+  nodeType: 'rect' as 'rect' | 'diamond',
+});
+
+const handleApplyBatch = () => {
+  const payload: BatchEditPayload = {};
+  if (batchForm.applyAssignee) payload.assignee = batchForm.assignee;
+  if (batchForm.applyTimeout) payload.timeoutMinutes = batchForm.timeoutMinutes;
+  if (batchForm.applyRemark) payload.remark = batchForm.remark;
+  if (batchForm.applyType) payload.nodeType = batchForm.nodeType;
+  emit('apply-batch', payload);
+};
 
 // 右侧表单只维护“当前输入值”，真正写回 LogicFlow 由父组件统一处理。
 const updateField = <K extends keyof PropertyForm>(key: K, value: PropertyForm[K]) => {
@@ -213,6 +237,25 @@ const updatePriority = (value: number | undefined) => updateField('priority', va
 .property-panel__actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.property-panel__batch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.property-panel__batch-row .el-checkbox {
+  flex-shrink: 0;
+  width: 104px;
+  margin-right: 0;
+}
+
+.property-panel__batch-row .el-input,
+.property-panel__batch-row .el-input-number,
+.property-panel__batch-row .el-select {
+  flex: 1;
 }
 
 .property-panel :deep(.el-form-item__label) {
