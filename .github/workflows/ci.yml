@@ -24,6 +24,22 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # E2E：Playwright 会自动拉起 mock 服务(3000) 和 vite dev(8080)，
+      # mock 以 --reset 启动保证每次运行数据干净
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
       # build 脚本内含 vue-tsc --noEmit，类型错误会直接失败
       - name: Type check & build
         run: npm run build
