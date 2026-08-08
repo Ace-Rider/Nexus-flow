@@ -90,11 +90,7 @@ test.describe('核心链路', () => {
 
     // 关闭抽屉，删掉一个节点，让画布偏离已保存版本
     await page.locator('.el-drawer__close-btn').click();
-    // 抽屉关闭后焦点回到 body，而 Delete 快捷键（mousetrap）挂在画布容器上，
-    // 需先点画布空白把焦点带入容器，否则 keydown 到不了容器、删除不生效
-    const canvas = mainGraph(page);
-    const canvasBox = (await canvas.boundingBox())!;
-    await canvas.click({ position: { x: 30, y: canvasBox.height - 30 } });
+    // 抽屉关闭后焦点回到 body；删除快捷键挂在 document 级，无需画布焦点也能生效
     await canvasNodes(page).first().click();
     await page.keyboard.press('Delete');
     await expect(nodeCountStat(page)).toHaveText('1');
@@ -151,12 +147,7 @@ test.describe('工作台与批量编辑', () => {
     await addNodeBtn.click();
     await expect(nodeCountStat(page)).toHaveText('2');
 
-    // 点击画布左下角空白处获得焦点（快捷键需要画布焦点；小地图在右下角），
-    // 然后 Ctrl+A 全选
-    const canvas = mainGraph(page);
-    const canvasBox = (await canvas.boundingBox())!;
-    const blank = { x: 30, y: canvasBox.height - 30 };
-    await canvas.click({ position: blank });
+    // Ctrl+A 全选（快捷键监听在 document 级，不依赖画布焦点）
     await page.keyboard.press('Control+a');
 
     // 右侧属性面板切换为批量编辑表单
@@ -170,8 +161,10 @@ test.describe('工作台与批量编辑', () => {
     await page.getByRole('button', { name: '批量应用' }).click();
     await expect(page.locator('.el-message--success', { hasText: '已批量更新 2 个节点' })).toBeVisible();
 
-    // 点空白取消选择，再单选一个节点，验证审批人已写入属性表单
-    await canvas.click({ position: blank });
+    // 点画布左下角空白取消选择（小地图在右下角），再单选一个节点，验证审批人已写入属性表单
+    const canvas = mainGraph(page);
+    const canvasBox = (await canvas.boundingBox())!;
+    await canvas.click({ position: { x: 30, y: canvasBox.height - 30 } });
     await canvasNodes(page).first().click();
     await expect(page.getByPlaceholder('请输入审批人')).toHaveValue('批量审批人');
   });

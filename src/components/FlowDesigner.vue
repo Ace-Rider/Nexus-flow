@@ -60,6 +60,7 @@ const container = ref<HTMLElement | null>(null);
 let lf: LogicFlow | null = null;
 let nodeSequence = 4;
 let removeKeyboardFocusListener: (() => void) | null = null;
+let removeDocumentKeydownListener: (() => void) | null = null;
 let clipboard: FlowClipboardData | null = null;
 let pasteSequence = 1;
 // 平移/缩放只改变视口，不改变图内容；
@@ -873,6 +874,41 @@ const exportPngDataUrl = async () => {
   }
 };
 
+// LogicFlow 的快捷键（mousetrap）只监听画布容器：焦点落在工具栏按钮或 body 上时，
+// Delete / Backspace / Ctrl+A 会完全失效。这里补一层 document 级监听兜底，
+// 同时从 LogicFlow keyboard 配置里移除对应两项，避免同一按键触发两次。
+const handleDocumentKeydown = (event: KeyboardEvent) => {
+  if (!lf || lf.graphModel.textEditElement) return;
+
+  // 正在输入框（模板搜索、属性表单等）里打字时不接管按键
+  const target = event.target as HTMLElement | null;
+  if (target) {
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+      return;
+    }
+  }
+
+  // 弹窗/抽屉打开时（Element Plus 会给 body 加锁滚类）不响应画布快捷键，
+  // 避免版本管理抽屉背后误删画布元素
+  if (document.body.classList.contains('el-popup-parent--hidden')) return;
+
+  const mod = event.ctrlKey || event.metaKey;
+
+  if (!mod && (event.key === 'Delete' || event.key === 'Backspace')) {
+    // 只有真的删掉了元素才拦截默认行为，避免影响浏览器的其它按键场景
+    if (deleteSelectedElements() > 0) {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (mod && !event.shiftKey && (event.key === 'a' || event.key === 'A')) {
+    event.preventDefault();
+    selectAllElements();
+  }
+};
+
 onMounted(() => {
   if (!container.value) return;
 
@@ -892,26 +928,8 @@ onMounted(() => {
     keyboard: {
       enabled: true,
       shortcuts: [
-        {
-          // Delete / Backspace 删除当前选中元素
-          keys: 'delete',
-          callback: (event: KeyboardEvent) => {
-            if (!lf || lf.graphModel.textEditElement) return;
-            event.preventDefault();
-            deleteSelectedElements();
-          },
-          action: 'keydown',
-        },
-        {
-          // Ctrl/Cmd + A 全选当前画布内容
-          keys: ['ctrl + a', 'cmd + a'],
-          callback: (event: KeyboardEvent) => {
-            if (!lf || lf.graphModel.textEditElement) return;
-            event.preventDefault();
-            selectAllElements();
-          },
-          action: 'keydown',
-        },
+        // Delete/Backspace 和 Ctrl/Cmd+A 已迁移到 document 级监听（见 handleDocumentKeydown），
+        // 解决焦点不在画布容器上时快捷键失效的问题
         {
           // Ctrl/Cmd + C 复制当前选中元素
           keys: ['ctrl + c', 'cmd + c'],
@@ -1012,6 +1030,12 @@ onMounted(() => {
   };
   focusGraphContainer();
 
+  // Delete / Backspace / Ctrl+A 挂到 document 级，焦点不在画布上也能生效
+  document.addEventListener('keydown', handleDocumentKeydown);
+  removeDocumentKeydownListener = () => {
+    document.removeEventListener('keydown', handleDocumentKeydown);
+  };
+
   // 父组件有数据就渲染父组件的数据，没有就先用默认示例图
   lf.render(toRenderData(props.modelValue || defaultGraphData));
   // LogicFlow 2.x 的 MiniMap 存在竞态：内部可能在挂载容器就绪前就把 isShow
@@ -1036,6 +1060,8 @@ onBeforeUnmount(() => {
   // 组件销毁时移除事件并销毁 LogicFlow 实例，避免泄漏
   removeKeyboardFocusListener?.();
   removeKeyboardFocusListener = null;
+  removeDocumentKeydownListener?.();
+  removeDocumentKeydownListener = null;
   if (transformSyncTimer !== null) {
     window.clearTimeout(transformSyncTimer);
     transformSyncTimer = null;
