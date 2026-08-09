@@ -1,4 +1,4 @@
-import { ElMessage } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
 import type { GraphData } from '@/types/flow';
 
 // 草稿的存储结构：完整图数据 + 更新时间，用于恢复前向用户确认
@@ -12,6 +12,19 @@ const getDraftStorageKey = (flowId: string) => `nexus-flow:draft:${flowId}`;
 
 // 自动保存做一个短暂防抖，避免拖动节点时频繁写 localStorage
 const draftDelay = 800;
+
+// 配额不足的提醒按流程区分、每次会话只弹一次，避免反复弹窗打断编辑
+const quotaWarnedFlowIds = new Set<string>();
+
+// 把图数据导出为 JSON 文件下载，作为 localStorage 写不进去时的兜底备份
+const downloadDraftBackup = (flowId: string, data: GraphData) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `nexus-flow-draft-${flowId}-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
 
 const getGraphSnapshot = (data: GraphData) => JSON.stringify(data);
 
@@ -48,9 +61,25 @@ export function useFlowDraft() {
     try {
       localStorage.setItem(getDraftStorageKey(flowId), JSON.stringify(payload));
     } catch (error) {
-      // localStorage 配额不足时草稿写不进去，提示用户但不要打断编辑
+      // localStorage 配额不足时草稿写不进去：每个流程每次会话只提醒一次，
+      // 并引导用户立即导出 JSON 备份，避免继续编辑后数据静默丢失
       console.warn('Failed to write local draft', error);
-      ElMessage.warning('本地存储空间不足，草稿保存失败');
+      if (!quotaWarnedFlowIds.has(flowId)) {
+        quotaWarnedFlowIds.add(flowId);
+        ElMessageBox.confirm(
+          '本地存储空间不足，草稿已无法自动保存。为避免数据丢失，建议立即导出 JSON 备份文件。',
+          '本地存储空间不足',
+          {
+            confirmButtonText: '导出备份',
+            cancelButtonText: '暂不导出',
+            type: 'warning',
+          },
+        )
+          .then(() => downloadDraftBackup(flowId, data))
+          .catch(() => {
+            // 用户选择暂不导出，无需处理
+          });
+      }
     }
 
     lastDraftSnapshot = snapshot;
