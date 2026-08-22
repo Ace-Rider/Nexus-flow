@@ -666,18 +666,47 @@ const handleValidateFlow = async () => {
   ElMessage.warning(`流程校验未通过，发现 ${result.issues.length} 个问题`);
 };
 
+// 触发一次 JSON 文件下载（Blob + a[download]），手动导出和每日自动备份共用
+const downloadJsonFile = (filename: string, content: string) => {
+  const blob = new Blob([content], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+};
+
 // 导出当前流程图为 JSON 文件，方便做数据备份或导入到别的环境
 const handleExport = () => {
   const json = designerRef.value?.exportData();
   if (!json) return;
 
-  const blob = new Blob([json], { type: 'application/json' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `flow_${Date.now()}.json`;
-  link.click();
-  URL.revokeObjectURL(link.href);
+  downloadJsonFile(`flow_${Date.now()}.json`, json);
   ElMessage.success('导出成功');
+};
+
+// 每天第一次保存成功后，自动把流程数据导出一份 JSON 到本地下载目录，
+// 作为 localStorage 配额爆掉或误操作时的最后防线；每个流程每天只备份一次
+const backupDateKey = (flowId: string) => `nexus-flow:last-backup:${flowId}`;
+
+const triggerDailyBackup = (flowId: string, flowName: string, data: GraphData) => {
+  const now = new Date();
+  const dateStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+    now.getDate(),
+  ).padStart(2, '0')}`;
+
+  try {
+    if (localStorage.getItem(backupDateKey(flowId)) === dateStamp) return;
+    localStorage.setItem(backupDateKey(flowId), dateStamp);
+  } catch (error) {
+    // 日期标记写不进去不影响本次备份，只是下次保存可能再导出一次
+    console.warn('Failed to record daily backup date', error);
+  }
+
+  // 文件名里的流程名替换掉 Windows / macOS 文件名都不允许的字符
+  const safeName = flowName.replace(/[\\/:*?"<>|\s]+/g, '-');
+  downloadJsonFile(`${safeName || flowId}_${dateStamp}.json`, JSON.stringify(data, null, 2));
+  ElMessage.info(`已自动导出今日备份：${safeName || flowId}_${dateStamp}.json`);
 };
 
 // 具体的“SVG -> Canvas -> PNG”转换在子组件里完成，这里只负责触发下载
@@ -784,6 +813,8 @@ const saveFlow = async (): Promise<boolean> => {
     validationIssues.value = [];
     // 记录已保存快照，供切换流程前的“未保存修改”检测使用
     lastSavedSnapshot = getGraphSnapshot(data);
+    // 每天首次保存成功后，静默导出一份 JSON 备份到下载目录
+    triggerDailyBackup(activeFlowId.value, activeFlow.value?.name || '', data);
     // 每次正式保存时都顺手留一份版本快照，方便后面回滚到某次提交
     if (
       !persistVersionSnapshot(activeFlowId.value, {
