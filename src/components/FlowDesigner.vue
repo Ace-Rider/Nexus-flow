@@ -9,6 +9,7 @@ import '@logicflow/core/es/index.css';
 import { MiniMap, SelectionSelect } from '@logicflow/extension';
 import '@logicflow/extension/es/index.css';
 import type { FlowClipboardData, GraphData, SelectedElement } from '@/types/flow';
+import { routeEdges } from '@/utils/edgeRouting';
 
 type AddNodeType = 'rect' | 'diamond';
 
@@ -35,11 +36,6 @@ type LayoutGraphData = {
 
 type NodePosition = {
   id: string;
-  x: number;
-  y: number;
-};
-
-type Point = {
   x: number;
   y: number;
 };
@@ -550,183 +546,26 @@ const applyNodePositions = (positions: NodePosition[]) => {
 };
 
 // 二次优化折线走向：
-// 先按节点位置重新分配每条边的“分流/汇流通道”，再去掉重复折点
+// 计算逻辑收敛在 utils/edgeRouting.ts（纯函数，可单测），
+// 这里只负责收集节点几何、把结果写回画布。
 const optimizeEdgeRoutes = () => {
   if (!lf) return null;
 
   const graphData = lf.getGraphData() as GraphData;
-  const nodeMap = new Map(
-    graphData.nodes.map((node) => {
-      const model = lf?.getNodeModelById(node.id);
-      return [
-        node.id,
-        {
-          ...node,
-          x: model?.x ?? node.x,
-          y: model?.y ?? node.y,
-          width: model?.width ?? 100,
-          height: model?.height ?? 80,
-        },
-      ];
-    }),
-  );
-
-  // outgoingMap：某个节点发出的所有边
-  // incomingMap：某个节点流入的所有边
-  const outgoingMap = new Map<string, any[]>();
-  const incomingMap = new Map<string, any[]>();
-
-  graphData.edges.forEach((edge) => {
-    if (!outgoingMap.has(edge.sourceNodeId)) {
-      outgoingMap.set(edge.sourceNodeId, []);
-    }
-    if (!incomingMap.has(edge.targetNodeId)) {
-      incomingMap.set(edge.targetNodeId, []);
-    }
-    outgoingMap.get(edge.sourceNodeId)?.push(edge);
-    incomingMap.get(edge.targetNodeId)?.push(edge);
+  const routeNodes = graphData.nodes.map((node) => {
+    const model = lf?.getNodeModelById(node.id);
+    return {
+      id: node.id,
+      x: model?.x ?? node.x,
+      y: model?.y ?? node.y,
+      width: model?.width ?? 100,
+      height: model?.height ?? 80,
+    };
   });
 
-  // 排序结果只依赖 nodeMap，循环外预排序一次，避免每条边都重复 slice+sort
-  const sortedOutgoing = new Map<string, any[]>();
-  const sortedIncoming = new Map<string, any[]>();
-  outgoingMap.forEach((edges, nodeId) => {
-    sortedOutgoing.set(
-      nodeId,
-      edges.slice().sort((a, b) => {
-        const targetA = nodeMap.get(a.targetNodeId);
-        const targetB = nodeMap.get(b.targetNodeId);
-        if (!targetA || !targetB) return 0;
-        if (targetA.y !== targetB.y) return targetA.y - targetB.y;
-        return targetA.x - targetB.x;
-      }),
-    );
-  });
-  incomingMap.forEach((edges, nodeId) => {
-    sortedIncoming.set(
-      nodeId,
-      edges.slice().sort((a, b) => {
-        const sourceA = nodeMap.get(a.sourceNodeId);
-        const sourceB = nodeMap.get(b.sourceNodeId);
-        if (!sourceA || !sourceB) return 0;
-        if (sourceA.y !== sourceB.y) return sourceA.y - sourceB.y;
-        return sourceA.x - sourceB.x;
-      }),
-    );
-  });
-
-  // 统一把坐标处理成整数，避免折点出现很多小数
-  const round = (value: number) => Math.round(value);
-  const toPoint = (x: number, y: number): Point => ({ x: round(x), y: round(y) });
-
-  // 去掉重复点和落在同一直线上的无效中间点，让 pointsList 更干净
-  const dedupePoints = (points: Point[]) => {
-    const compact = points.filter((point, index) => {
-      if (index === 0) return true;
-      const prev = points[index - 1];
-      return prev.x !== point.x || prev.y !== point.y;
-    });
-
-    return compact.filter((point, index) => {
-      if (index === 0 || index === compact.length - 1) return true;
-      const prev = compact[index - 1];
-      const next = compact[index + 1];
-      const sameVertical = prev.x === point.x && point.x === next.x;
-      const sameHorizontal = prev.y === point.y && point.y === next.y;
-      return !sameVertical && !sameHorizontal;
-    });
-  };
-
-  graphData.edges.forEach((edge) => {
-    const source = nodeMap.get(edge.sourceNodeId);
-    const target = nodeMap.get(edge.targetNodeId);
-    const edgeModel = lf?.getEdgeModelById(edge.id);
-
-    if (!source || !target || !edgeModel) return;
-
-    // 同一起点的出边已按目标节点位置预排序，决定谁走上面的通道、谁走下面的通道
-    const sourceOutgoing = sortedOutgoing.get(edge.sourceNodeId) || [];
-
-    // 同一终点的入边已按来源节点位置预排序，决定汇入终点时的错位顺序
-    const targetIncoming = sortedIncoming.get(edge.targetNodeId) || [];
-
-    const outgoingIndex = Math.max(0, sourceOutgoing.findIndex((item) => item.id === edge.id));
-    const incomingIndex = Math.max(0, targetIncoming.findIndex((item) => item.id === edge.id));
-
-    const horizontalDistance = Math.abs(target.x - source.x);
-    const verticalDistance = Math.abs(target.y - source.y);
-    // 更接近上下方向时，优先走纵向折线；否则走横向主通道
-    const isVerticalRoute =
-      horizontalDistance < Math.max(source.width, target.width) * 0.9 &&
-      verticalDistance > Math.max(source.height, target.height) * 0.6;
-
-    if (isVerticalRoute) {
-      // 纵向走线：从上下边缘进出，中间只保留一段横向折线
-      const direction = target.y >= source.y ? 1 : -1;
-      const startPoint = toPoint(source.x, source.y + (direction * source.height) / 2);
-      const endPoint = toPoint(target.x, target.y - (direction * target.height) / 2);
-      const midY = round((startPoint.y + endPoint.y) / 2);
-      const pointsList = dedupePoints([
-        startPoint,
-        toPoint(startPoint.x, midY),
-        toPoint(endPoint.x, midY),
-        endPoint,
-      ]);
-
-      lf?.updateAttributes(edge.id, {
-        startPoint,
-        endPoint,
-        pointsList,
-      });
-      return;
-    }
-
-    // 横向走线：先从起点分流，再走中间 lane，最后在终点附近汇入
-    const direction = target.x >= source.x ? 1 : -1;
-    const startPoint = toPoint(source.x + (direction * source.width) / 2, source.y);
-    const endPoint = toPoint(target.x - (direction * target.width) / 2, target.y);
-    const branchCount = sourceOutgoing.length;
-    const mergeCount = targetIncoming.length;
-    const laneGap = 42;
-    const branchOffset =
-      branchCount > 1 ? (outgoingIndex - (branchCount - 1) / 2) * laneGap : 0;
-    const mergeOffset =
-      mergeCount > 1 ? (incomingIndex - (mergeCount - 1) / 2) * 18 : 0;
-    // laneY 表示这条边在中间横向主通道上走的那条“高度层”
-    const laneY = round(source.y + branchOffset);
-    const distance = Math.max(horizontalDistance, 80);
-    const sourceGap = Math.min(104, Math.max(42, distance * 0.22));
-    const targetGap = Math.min(88, Math.max(36, distance * 0.18));
-    let splitX = round(startPoint.x + direction * sourceGap);
-    let mergeX = round(endPoint.x - direction * targetGap);
-    const minimumChannel = 36;
-
-    // splitX 和 mergeX 过近时，强行拉开一段最小通道，避免折线挤成一团
-    if (
-      (direction > 0 && splitX > mergeX - minimumChannel) ||
-      (direction < 0 && splitX < mergeX + minimumChannel)
-    ) {
-      const centerX = round((startPoint.x + endPoint.x) / 2);
-      splitX = centerX - direction * Math.ceil(minimumChannel / 2);
-      mergeX = centerX + direction * Math.ceil(minimumChannel / 2);
-    }
-
-    const entryY = round(endPoint.y + mergeOffset);
-    const pointsList = dedupePoints([
-      startPoint,
-      toPoint(splitX, startPoint.y),
-      toPoint(splitX, laneY),
-      toPoint(mergeX, laneY),
-      toPoint(mergeX, entryY),
-      toPoint(mergeX, endPoint.y),
-      endPoint,
-    ]);
-
-    lf?.updateAttributes(edge.id, {
-      startPoint,
-      endPoint,
-      pointsList,
-    });
+  const geometryById = routeEdges(routeNodes, graphData.edges);
+  geometryById.forEach((geometry, edgeId) => {
+    lf?.updateAttributes(edgeId, geometry);
   });
 
   refreshState();
