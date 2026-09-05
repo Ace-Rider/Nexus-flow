@@ -1,8 +1,7 @@
 import type { GraphData, FlowVersionRecord } from '@/types/flow';
+import { versionsStorageKey } from '@/utils/storageKeys';
 
 const MAX_VERSION_COUNT = 20;
-
-const getVersionStorageKey = (flowId: string) => `nexus-flow:versions:${flowId}`;
 
 const cloneGraphData = (data: GraphData) => JSON.parse(JSON.stringify(data)) as GraphData;
 
@@ -17,7 +16,7 @@ const countGraph = (data: GraphData) => ({
 });
 
 export const readFlowVersions = (flowId: string): FlowVersionRecord[] => {
-  const raw = localStorage.getItem(getVersionStorageKey(flowId));
+  const raw = localStorage.getItem(versionsStorageKey(flowId));
   if (!raw) return [];
 
   try {
@@ -26,14 +25,14 @@ export const readFlowVersions = (flowId: string): FlowVersionRecord[] => {
     return parsed;
   } catch (error) {
     console.warn('Failed to parse flow versions', error);
-    localStorage.removeItem(getVersionStorageKey(flowId));
+    localStorage.removeItem(versionsStorageKey(flowId));
     return [];
   }
 };
 
 const writeFlowVersions = (flowId: string, versions: FlowVersionRecord[]) => {
   try {
-    localStorage.setItem(getVersionStorageKey(flowId), JSON.stringify(versions));
+    localStorage.setItem(versionsStorageKey(flowId), JSON.stringify(versions));
   } catch (error) {
     // 配额不足等写入失败要抛出去，让调用方提示用户，避免版本静默丢失
     console.warn('Failed to write flow versions', error);

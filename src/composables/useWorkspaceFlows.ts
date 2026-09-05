@@ -1,7 +1,10 @@
 import { computed, ref } from 'vue';
 import type { WorkspaceFlowRecord } from '@/types/flow';
-
-const getWorkspaceStorageKey = () => 'nexus-flow:workspace:flows';
+import {
+  draftStorageKey,
+  versionsStorageKey,
+  workspaceStorageKey,
+} from '@/utils/storageKeys';
 
 // 工作台的流程列表和当前激活流程：
 // 列表持久化在 localStorage，首次使用时给一组默认演示流程。
@@ -95,13 +98,12 @@ export function useWorkspaceFlows() {
 
   // 删除流程：连同本地草稿和版本记录一起清理；
   // 删除的是激活流程时自动切换到剩余的第一个；至少保留一个流程。
-  // 存储键与 useFlowDraft.ts / utils/version.ts 中的定义保持一致。
   const removeWorkspaceFlow = (flowId: string) => {
     if (workspaceFlows.value.length <= 1) return false;
 
     try {
-      localStorage.removeItem(`nexus-flow:draft:${flowId}`);
-      localStorage.removeItem(`nexus-flow:versions:${flowId}`);
+      localStorage.removeItem(draftStorageKey(flowId));
+      localStorage.removeItem(versionsStorageKey(flowId));
     } catch (error) {
       console.warn('Failed to clean flow storage', error);
     }

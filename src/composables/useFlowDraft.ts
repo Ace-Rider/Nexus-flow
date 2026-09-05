@@ -1,5 +1,6 @@
 import { ElMessageBox } from 'element-plus';
 import type { GraphData } from '@/types/flow';
+import { draftStorageKey } from '@/utils/storageKeys';
 
 // 草稿的存储结构：完整图数据 + 更新时间，用于恢复前向用户确认
 export type FlowDraftPayload = {
@@ -36,14 +37,14 @@ export function useFlowDraft() {
 
   // 读取本地草稿；如果草稿损坏，顺手清掉错误数据
   const readDraft = (flowId: string): FlowDraftPayload | null => {
-    const raw = localStorage.getItem(getDraftStorageKey(flowId));
+    const raw = localStorage.getItem(draftStorageKey(flowId));
     if (!raw) return null;
 
     try {
       return JSON.parse(raw) as FlowDraftPayload;
     } catch (error) {
       console.warn('Failed to parse local draft', error);
-      localStorage.removeItem(getDraftStorageKey(flowId));
+      localStorage.removeItem(draftStorageKey(flowId));
       return null;
     }
   };
@@ -59,7 +60,7 @@ export function useFlowDraft() {
     };
 
     try {
-      localStorage.setItem(getDraftStorageKey(flowId), JSON.stringify(payload));
+      localStorage.setItem(draftStorageKey(flowId), JSON.stringify(payload));
     } catch (error) {
       // localStorage 配额不足时草稿写不进去：每个流程每次会话只提醒一次，
       // 并引导用户立即导出 JSON 备份，避免继续编辑后数据静默丢失
@@ -87,7 +88,7 @@ export function useFlowDraft() {
 
   // 正式保存成功后清空对应草稿，避免旧草稿覆盖新数据
   const clearDraft = (flowId: string) => {
-    localStorage.removeItem(getDraftStorageKey(flowId));
+    localStorage.removeItem(draftStorageKey(flowId));
     lastDraftSnapshot = '';
   };
 

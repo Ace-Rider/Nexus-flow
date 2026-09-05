@@ -224,6 +224,7 @@ import PropertyPanel from '@/components/PropertyPanel.vue';
 import { fetchFlowData, saveFlowData } from '@/api/auth';
 import { runLayoutInWorker } from '@/utils/performance';
 import { validateFlowData, type ValidationIssue } from '@/utils/flowValidation';
+import { backupDateStorageKey } from '@/utils/storageKeys';
 import { useFlowDraft } from '@/composables/useFlowDraft';
 import { useFlowVersions } from '@/composables/useFlowVersions';
 import { useWorkspaceFlows } from '@/composables/useWorkspaceFlows';
@@ -687,8 +688,6 @@ const handleExport = () => {
 
 // 每天第一次保存成功后，自动把流程数据导出一份 JSON 到本地下载目录，
 // 作为 localStorage 配额爆掉或误操作时的最后防线；每个流程每天只备份一次
-const backupDateKey = (flowId: string) => `nexus-flow:last-backup:${flowId}`;
-
 const triggerDailyBackup = (flowId: string, flowName: string, data: GraphData) => {
   const now = new Date();
   const dateStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
@@ -696,8 +695,8 @@ const triggerDailyBackup = (flowId: string, flowName: string, data: GraphData) =
   ).padStart(2, '0')}`;
 
   try {
-    if (localStorage.getItem(backupDateKey(flowId)) === dateStamp) return;
-    localStorage.setItem(backupDateKey(flowId), dateStamp);
+    if (localStorage.getItem(backupDateStorageKey(flowId)) === dateStamp) return;
+    localStorage.setItem(backupDateStorageKey(flowId), dateStamp);
   } catch (error) {
     // 日期标记写不进去不影响本次备份，只是下次保存可能再导出一次
     console.warn('Failed to record daily backup date', error);
