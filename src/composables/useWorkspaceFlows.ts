@@ -31,7 +31,7 @@ export function useWorkspaceFlows() {
   ];
 
   const readWorkspaceFlows = () => {
-    const raw = localStorage.getItem(getWorkspaceStorageKey());
+    const raw = localStorage.getItem(workspaceStorageKey());
     if (!raw) {
       return buildDefaultFlows();
     }
@@ -47,7 +47,7 @@ export function useWorkspaceFlows() {
 
   const saveWorkspaceFlows = (flows: WorkspaceFlowRecord[]) => {
     workspaceFlows.value = flows;
-    localStorage.setItem(getWorkspaceStorageKey(), JSON.stringify(flows));
+    localStorage.setItem(workspaceStorageKey(), JSON.stringify(flows));
   };
 
   // 页面初始化：恢复列表，并保证当前激活 id 一定存在于列表中
