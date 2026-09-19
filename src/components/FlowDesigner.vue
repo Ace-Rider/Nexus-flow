@@ -728,9 +728,16 @@ const handleDocumentKeydown = (event: KeyboardEvent) => {
     }
   }
 
-  // 弹窗/抽屉打开时（Element Plus 会给 body 加锁滚类）不响应画布快捷键，
-  // 避免版本管理抽屉背后误删画布元素
-  if (document.body.classList.contains('el-popup-parent--hidden')) return;
+  // 弹窗/抽屉打开时不响应画布快捷键，避免抽屉背后误删画布元素。
+  // 判断“弹窗还开着”必须看 overlay 的实际显示状态：
+  // - body 的 el-popup-parent--hidden 锁滚类在关闭动画期间可能残留（按 Delete 偶发失效）
+  // - .el-overlay 元素即使关闭也常驻 DOM（el-drawer 用 v-show 渲染），存在性不能说明开关
+  // 只有计算样式非 display:none（真的显示中，含关闭动画过程）才视为打开
+  const hasVisibleOverlay = () =>
+    Array.from(document.querySelectorAll<HTMLElement>('.el-overlay')).some(
+      (el) => window.getComputedStyle(el).display !== 'none',
+    );
+  if (hasVisibleOverlay()) return;
 
   const mod = event.ctrlKey || event.metaKey;
 

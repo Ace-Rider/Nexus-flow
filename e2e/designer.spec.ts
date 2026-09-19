@@ -90,6 +90,9 @@ test.describe('核心链路', () => {
 
     // 关闭抽屉，删掉一个节点，让画布偏离已保存版本
     await page.locator('.el-drawer__close-btn').click();
+    // 抽屉用 v-show 渲染（不会从 DOM 卸载，只会隐藏）：等它隐藏完成再操作，
+    // 关闭动画期间画布快捷键被有意屏蔽，立刻按 Delete 会不稳定
+    await page.locator('.el-drawer').waitFor({ state: 'hidden' });
     // 抽屉关闭后焦点回到 body；删除快捷键挂在 document 级，无需画布焦点也能生效
     await canvasNodes(page).first().click();
     await page.keyboard.press('Delete');
