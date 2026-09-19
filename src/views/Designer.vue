@@ -416,27 +416,31 @@ const confirmLeaveIfDirty = async () => {
   }
 };
 
+// 切换/新建/删除激活流程后的收尾：刷新新流程的版本列表并重新加载画布数据
+const reloadActiveFlow = async () => {
+  refreshVersions(activeFlowId.value);
+  await loadFlow();
+};
+
 const switchFlow = async (flowId: string) => {
   if (flowId === activeFlowId.value) return;
   if (!(await confirmLeaveIfDirty())) return;
   cancelDraftWrite();
   syncActiveFlowRecord();
   activeFlowId.value = flowId;
-  refreshVersions(flowId);
-  await loadFlow();
+  await reloadActiveFlow();
 };
 
 const createFlowWorkspace = async () => {
   if (!(await confirmLeaveIfDirty())) return;
   cancelDraftWrite();
   createWorkspaceFlow();
-  refreshVersions(activeFlowId.value);
   applyFlowData({
     nodes: [],
     edges: [],
   });
   lastSavedSnapshot = getGraphSnapshot({ nodes: [], edges: [] });
-  await loadFlow();
+  await reloadActiveFlow();
 };
 
 // 重命名流程：弹窗输入新名称，空名称由 composable 统一拒绝
@@ -483,8 +487,7 @@ const removeFlowWorkspace = async (flow: WorkspaceFlowRecord) => {
   ElMessage.success('流程已删除');
   if (wasActive) {
     cancelDraftWrite();
-    refreshVersions(activeFlowId.value);
-    await loadFlow();
+    await reloadActiveFlow();
   }
 };
 
