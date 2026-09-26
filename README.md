@@ -22,19 +22,20 @@
 
 ## 技术栈
 
-| 分类 | 技术 |
-| --- | --- |
-| 前端框架 | Vue 3 |
-| 开发语言 | TypeScript |
-| 构建工具 | Vite 7 |
-| 路由 | Vue Router 4 |
-| 状态管理 | Pinia |
-| UI 组件库 | Element Plus（unplugin 自动按需引入） |
-| 流程图引擎 | LogicFlow 2.x |
-| 请求库 | Axios |
-| Mock 服务 | Express |
-| 单元测试 | Vitest + happy-dom |
-| E2E 测试 | Playwright |
+| 分类       | 技术                                  |
+| ---------- | ------------------------------------- |
+| 前端框架   | Vue 3                                 |
+| 开发语言   | TypeScript                            |
+| 构建工具   | Vite 7                                |
+| 路由       | Vue Router 4                          |
+| 状态管理   | Pinia                                 |
+| UI 组件库  | Element Plus（unplugin 自动按需引入） |
+| 流程图引擎 | LogicFlow 2.x                         |
+| 布局算法   | dagre（分层布局，Worker 后台计算）    |
+| 请求库     | Axios                                 |
+| Mock 服务  | Express                               |
+| 单元测试   | Vitest + happy-dom                    |
+| E2E 测试   | Playwright                            |
 
 ## 当前功能
 
@@ -89,8 +90,6 @@ nexus-flow/
 │  └─ ci.yml              # CI：单测 + E2E + 类型检查构建
 ├─ e2e/
 │  └─ designer.spec.ts    # Playwright E2E 用例
-├─ public/
-│  └─ worker.js           # 智能布局 Web Worker
 ├─ src/
 │  ├─ api/
 │  │  ├─ auth.ts
@@ -111,12 +110,17 @@ nexus-flow/
 │  ├─ types/
 │  │  └─ flow.ts           # 共享强类型定义
 │  ├─ utils/
+│  │  ├─ edgeRouting.ts    # 折线二次路由纯函数
 │  │  ├─ flowValidation.ts # 流程结构校验
+│  │  ├─ layout.ts         # dagre 智能布局纯函数
 │  │  ├─ performance.ts    # Worker 布局调度
+│  │  ├─ storageKeys.ts    # localStorage 键名收口
 │  │  └─ version.ts        # 版本管理工具
 │  ├─ views/
 │  │  ├─ Designer.vue      # 业务层
 │  │  └─ Login.vue
+│  ├─ workers/
+│  │  └─ layoutWorker.ts   # 智能布局 Web Worker 入口
 │  ├─ App.vue
 │  ├─ main.ts
 │  └─ shims-vue.d.ts
@@ -192,13 +196,20 @@ nexus-flow/
 - 读取和删除历史版本
 - 限制版本数量，避免本地存储无限增长
 
-### `public/worker.js`
+### `src/utils/layout.ts`
 
-智能布局算法运行在这里：
+智能布局的纯函数实现，内部基于 dagre 分层布局：
 
-- 处理节点层级与位置计算
-- 计算适合当前画布的节点坐标
-- 将结果返回给主线程更新 LogicFlow
+- 无有效连线时退化为居中网格布局
+- 自动过滤无效边和自环
+- 计算结果整体居中，并夹在画布边界内
+
+### `src/workers/layoutWorker.ts`
+
+布局 Web Worker 入口，由 Vite 打包成独立产物：
+
+- 只做消息协议包装（`LAYOUT` / `LAYOUT_RESULT`）
+- 真正的布局计算复用 `layout.ts` 的纯函数
 
 ### `src/api/request.ts`
 
@@ -248,7 +259,7 @@ Pinia 鉴权状态：
 点击智能布局
 -> Designer.vue 获取当前图数据
 -> 调用 runLayoutInWorker()
--> worker.js 计算新的节点坐标
+-> layoutWorker 在后台线程用 dagre 计算新的节点坐标
 -> FlowDesigner.vue 应用节点位置
 -> 再执行边路径优化
 -> fitView 展示整张图
@@ -364,12 +375,12 @@ npm run mock -- --reset
 
 ## Mock 接口
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/auth/login` | 登录，返回 mock token |
-| POST | `/api/auth/refresh` | 刷新 access token |
-| GET | `/api/flows/:id` | 获取流程数据 |
-| POST | `/api/flows/:id` | 保存流程数据（写入 mock-data.json） |
+| 方法 | 路径                | 说明                                |
+| ---- | ------------------- | ----------------------------------- |
+| POST | `/api/auth/login`   | 登录，返回 mock token               |
+| POST | `/api/auth/refresh` | 刷新 access token                   |
+| GET  | `/api/flows/:id`    | 获取流程数据                        |
+| POST | `/api/flows/:id`    | 保存流程数据（写入 mock-data.json） |
 
 Mock 登录规则：
 
