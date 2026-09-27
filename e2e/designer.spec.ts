@@ -172,3 +172,40 @@ test.describe('工作台与批量编辑', () => {
     await expect(page.getByPlaceholder('请输入审批人')).toHaveValue('批量审批人');
   });
 });
+
+test.describe('智能布局', () => {
+  test('点击智能布局后节点坐标被重排并提示耗时', async ({ page }) => {
+    await login(page);
+
+    // 新流程：画布为空，与其他用例隔离；放入 3 个无连线节点
+    await page.getByRole('button', { name: '新流程' }).click();
+    const addNodeBtn = page.getByRole('button', { name: '新增节点' });
+    await addNodeBtn.click();
+    await addNodeBtn.click();
+    await addNodeBtn.click();
+    await expect(nodeCountStat(page)).toHaveText('3');
+
+    // LogicFlow 2.x 的节点没有 transform 包装层，位置体现在主体矩形的 x/y 属性上
+    // （画布坐标系，智能布局后的 fitView 只改外层画布 transform，不影响这里的读数）
+    const readNodePos = async (index: number) => {
+      const rect = canvasNodes(page).nth(index).locator('rect.lf-basic-shape').first();
+      return `${await rect.getAttribute('x')},${await rect.getAttribute('y')}`;
+    };
+
+    const beforeFirst = await readNodePos(0);
+    const beforeSecond = await readNodePos(1);
+    expect(beforeFirst).toMatch(/^-?\d+,-?\d+$/);
+
+    // 无连线时布局走网格兜底，同样会经过 Worker 计算并重排节点
+    await page.getByRole('button', { name: '智能布局' }).click();
+    await expect(
+      page.locator('.el-message--success', { hasText: '智能布局完成' }),
+    ).toBeVisible();
+
+    // 节点坐标发生变化
+    await expect(async () => {
+      expect(await readNodePos(0)).not.toBe(beforeFirst);
+      expect(await readNodePos(1)).not.toBe(beforeSecond);
+    }).toPass();
+  });
+});
