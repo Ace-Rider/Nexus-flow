@@ -18,6 +18,11 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  optimizeDeps: {
+    // dagre 只被布局 Worker 通过 new URL 动态引用，启动扫描发现不了；
+    // 不预打包的话，dev 模式首次点击「智能布局」会因为依赖重新优化触发整页 reload
+    include: ['dagre'],
+  },
   server: {
     port: 8080,
     proxy: {
