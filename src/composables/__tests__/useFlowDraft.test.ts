@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ElMessageBox } from 'element-plus';
-import { useFlowDraft } from '@/composables/useFlowDraft';
+import { useFlowDraft, resetDraftWarnState } from '@/composables/useFlowDraft';
 import type { GraphData } from '@/types/flow';
 import { draftStorageKey } from '@/utils/storageKeys';
 
@@ -32,6 +32,8 @@ const stubQuotaExceededStorage = () => {
 describe('useFlowDraft 本地草稿', () => {
   beforeEach(() => {
     localStorage.clear();
+    // 隔离模块级的提醒去重状态，避免用例之间隐式耦合
+    resetDraftWarnState();
     vi.mocked(ElMessageBox.confirm).mockClear();
   });
 
@@ -101,6 +103,18 @@ describe('useFlowDraft 本地草稿', () => {
 
       // 其他流程失败：仍会提醒
       writeDraft('flow-b', buildGraph());
+      expect(ElMessageBox.confirm).toHaveBeenCalledTimes(2);
+    });
+
+    it('重置提醒状态后，同一流程的下次配额失败会再次提醒', () => {
+      stubQuotaExceededStorage();
+      const { writeDraft } = useFlowDraft();
+
+      writeDraft('flow-a', buildGraph());
+      expect(ElMessageBox.confirm).toHaveBeenCalledTimes(1);
+
+      resetDraftWarnState();
+      writeDraft('flow-a', buildGraph({ nodes: [{ id: 'node_2', x: 1, y: 1 }] }));
       expect(ElMessageBox.confirm).toHaveBeenCalledTimes(2);
     });
 

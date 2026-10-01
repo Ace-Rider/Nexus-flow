@@ -17,6 +17,12 @@ const draftDelay = 800;
 // 配额不足的提醒按流程区分、每次会话只弹一次，避免反复弹窗打断编辑
 const quotaWarnedFlowIds = new Set<string>();
 
+// 重置配额提醒的去重状态。生产代码不会调用，仅供测试隔离模块级状态，
+// 避免用例之间因“某流程已提醒过”而隐式耦合
+export const resetDraftWarnState = () => {
+  quotaWarnedFlowIds.clear();
+};
+
 // 把图数据导出为 JSON 文件下载，作为 localStorage 写不进去时的兜底备份
 const downloadDraftBackup = (flowId: string, data: GraphData) => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
