@@ -10,7 +10,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  reporter: 'list',
+  // list 负责控制台输出，html 负责生成 playwright-report/ 目录：
+  // CI 失败时的 artifact 上传依赖该目录，只用 list 时目录不会生成
+  reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: 'http://localhost:8080',
     trace: 'on-first-retry',
